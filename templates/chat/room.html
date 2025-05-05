@@ -1,0 +1,226 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ chat_room.name }} - غرف الدردشة - مسابقاتي{% endblock %}
+
+{% block styles %}
+<style>
+    .chat-container {
+        height: 60vh;
+        overflow-y: auto;
+        background-color: rgba(0, 0, 0, 0.03);
+        border-radius: 0.5rem;
+    }
+    
+    .message-bubble {
+        max-width: 80%;
+        border-radius: 1rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+    
+    .message-own {
+        background-color: #2563EB;
+        color: white;
+        margin-left: auto;
+        border-bottom-right-radius: 0.25rem;
+    }
+    
+    .message-other {
+        background-color: #f8f9fa;
+        color: #343a40;
+        margin-right: auto;
+        border-bottom-left-radius: 0.25rem;
+    }
+    
+    .message-metadata {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+    
+    .message-own .message-metadata {
+        text-align: left;
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .message-other .message-metadata {
+        text-align: right;
+        color: #6c757d;
+    }
+    
+    .chat-input {
+        padding: 1rem;
+        background-color: #fff;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .member-list {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+    
+    .online-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    
+    .online {
+        background-color: #28a745;
+    }
+    
+    .offline {
+        background-color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-3">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('chat_rooms') }}">غرف الدردشة</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ chat_room.name }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- منطقة الدردشة -->
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-comments me-2"></i>{{ chat_room.name }}
+                    </h5>
+                    <small>
+                        {% if chat_room.is_direct_message %}
+                            <i class="fas fa-user me-1"></i>محادثة خاصة
+                        {% else %}
+                            <i class="fas fa-users me-1"></i>{{ members|length }} مشارك
+                        {% endif %}
+                    </small>
+                </div>
+                <div class="card-body p-0">
+                    <!-- منطقة عرض الرسائل -->
+                    <div class="chat-container p-3" id="chatMessages">
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="message-bubble {% if message.sender_id == current_user.id %}message-own{% else %}message-other{% endif %}">
+                                    {% if message.sender_id != current_user.id %}
+                                        <div class="fw-bold">{{ message.sender.username }}</div>
+                                    {% endif %}
+                                    
+                                    {{ message.content }}
+                                    
+                                    <div class="message-metadata">
+                                        {{ message.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center text-muted p-5">
+                                <i class="fas fa-comments fa-3x mb-3"></i>
+                                <h5>لم يتم إرسال أي رسائل بعد</h5>
+                                <p>كن أول من يبدأ المحادثة!</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- نموذج إرسال رسالة -->
+                    <div class="chat-input">
+                        <form method="POST" action="{{ url_for('chat_room', room_id=chat_room.id) }}">
+                            {{ form.hidden_tag() }}
+                            
+                            <div class="input-group">
+                                {{ form.content(class="form-control", placeholder="اكتب رسالتك هنا...") }}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- معلومات الغرفة والأعضاء -->
+        <div class="col-md-4">
+            <!-- معلومات الغرفة -->
+            {% if not chat_room.is_direct_message %}
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>معلومات الغرفة
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        {% if chat_room.description %}
+                            {{ chat_room.description }}
+                        {% else %}
+                            <span class="text-muted">لا يوجد وصف للغرفة</span>
+                        {% endif %}
+                    </p>
+                    
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">تاريخ الإنشاء:</small>
+                        <small>{{ chat_room.created_at.strftime('%Y-%m-%d') }}</small>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- قائمة الأعضاء -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-users me-2"></i>المشاركون
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush member-list">
+                        {% for member in members %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="online-indicator {{ 'online' if member.id == current_user.id else 'offline' }}"></span>
+                                    {{ member.username }}
+                                    
+                                    {% set membership = member.chat_rooms.filter_by(chat_room_id=chat_room.id).first() %}
+                                    {% if membership and membership.is_admin %}
+                                        <span class="badge bg-info ms-1">مدير</span>
+                                    {% endif %}
+                                    
+                                    {% if member.id == current_user.id %}
+                                        <span class="badge bg-success ms-1">أنت</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <small class="text-muted">
+                                    {% set membership = member.chat_rooms.filter_by(chat_room_id=chat_room.id).first() %}
+                                    {{ membership.joined_at.strftime('%Y-%m-%d') }}
+                                </small>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // التمرير إلى آخر الرسائل عند تحميل الصفحة
+    document.addEventListener("DOMContentLoaded", function() {
+        var chatContainer = document.getElementById('chatMessages');
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    });
+</script>
+{% endblock %}

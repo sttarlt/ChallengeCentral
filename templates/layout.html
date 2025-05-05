@@ -38,6 +38,17 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('leaderboard') }}">المتصدرين</a>
                     </li>
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('chat_rooms') }}">
+                            <i class="fas fa-comments me-1"></i>الدردشة
+                            {% set unread_count = current_user.chat_rooms.join(ChatRoom.messages).filter(Message.created_at > ChatRoomMember.last_read_at).count() %}
+                            {% if unread_count > 0 %}
+                            <span class="badge rounded-pill bg-danger">{{ unread_count }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
                 <div class="d-flex">
                     {% if current_user.is_authenticated %}
@@ -103,6 +114,9 @@
                         <li><a href="{{ url_for('competitions') }}" class="text-white-50 text-decoration-none">المسابقات</a></li>
                         <li><a href="{{ url_for('rewards') }}" class="text-white-50 text-decoration-none">الجوائز</a></li>
                         <li><a href="{{ url_for('leaderboard') }}" class="text-white-50 text-decoration-none">المتصدرين</a></li>
+                        {% if current_user.is_authenticated %}
+                        <li><a href="{{ url_for('chat_rooms') }}" class="text-white-50 text-decoration-none">الدردشة</a></li>
+                        {% endif %}
                     </ul>
                 </div>
                 <div class="col-md-4">

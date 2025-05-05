@@ -42,13 +42,20 @@ db.init_app(app)
 
 with app.app_context():
     # Import models
-    from models import User, Competition, Reward, Participation, RewardRedemption
+    from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message
     
     # Import routes
     from routes import *
     
     # Create all tables
     db.create_all()
+    
+    # Make models available in templates
+    app.jinja_env.globals.update(
+        ChatRoom=ChatRoom,
+        ChatRoomMember=ChatRoomMember,
+        Message=Message
+    )
     
     # User loader callback
     @login_manager.user_loader
