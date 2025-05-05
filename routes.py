@@ -233,10 +233,16 @@ def leaderboard():
 
 @app.route('/points-pricing')
 def points_pricing():
-    """عرض صفحة باقات النقاط وأسعارها"""
+    """عرض صفحة باقات الكربتو وأسعارها"""
     packages = PointsPackage.query.filter_by(is_active=True).order_by(PointsPackage.display_order).all()
     contact_link = config.CONTACT_LINK
-    return render_template('points_pricing.html', packages=packages, contact_link=contact_link)
+    currency_name = config.CURRENCY_NAME
+    currency_name_plural = config.CURRENCY_NAME_PLURAL
+    return render_template('points_pricing.html', 
+                          packages=packages, 
+                          contact_link=contact_link,
+                          currency_name=currency_name,
+                          currency_name_plural=currency_name_plural)
 
 
 # Admin routes
