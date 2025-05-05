@@ -983,66 +983,64 @@ def admin_add_purchase():
     form = PurchaseRecordForm()
     
     if form.validate_on_submit():
-        # البحث عن المستخدم بواسطة اسم المستخدم
-        user = User.query.filter_by(username=form.username.data).first()
-        
-        if not user:
-            flash(f'لم يتم العثور على المستخدم: {form.username.data}', 'danger')
-            return redirect(url_for('admin_add_purchase'))
-        
-        amount_paid = form.amount_paid.data
-        currency = form.currency.data
-        points_added = form.points_added.data
-        payment_method = form.payment_method.data
-        reference = form.reference.data
-        notes = form.notes.data
-        
-        # إنشاء سجل عملية الشراء
-        purchase = PurchaseRecord(
-            user_id=user.id,
-            amount_paid=amount_paid,
-            currency=currency,
-            points_added=points_added,
-            payment_method=payment_method,
-            reference=reference,
-            notes=notes,
-            created_by_id=current_user.id
-        )
-        
-        # إضافة سجل العملية للقاعدة
-        db.session.add(purchase)
-        
-        # إضافة النقاط للمستخدم عبر الدالة المحسنة
-        success = user.add_points(
-            points=points_added,
-            transaction_type='purchase',
-            related_id=None,  # سيتم تحديثه لاحقاً بعد الحصول على معرف العملية
-            description=f'شراء {points_added} كربتو مقابل {amount_paid} {currency}',
-            created_by_id=current_user.id,
-            request=request
-        )
-        
-        if success:
-            db.session.commit()
+        try:
+            # البحث عن المستخدم بواسطة اسم المستخدم
+            user = User.query.filter_by(username=form.username.data).first()
             
-            # تحديث purchase.id في سجل المعاملة لربط العمليتين
-            transaction = PointsTransaction.query.filter_by(
+            if not user:
+                flash(f'لم يتم العثور على المستخدم: {form.username.data}', 'danger')
+                return redirect(url_for('admin_add_purchase'))
+            
+            amount_paid = form.amount_paid.data
+            currency = form.currency.data
+            points_added = form.points_added.data
+            payment_method = form.payment_method.data
+            reference = form.reference.data
+            notes = form.notes.data
+            
+            # بدء transaction لضمان تنفيذ جميع العمليات كوحدة واحدة
+            db.session.begin_nested()
+            
+            # إنشاء سجل عملية الشراء
+            purchase = PurchaseRecord(
                 user_id=user.id,
+                amount_paid=amount_paid,
+                currency=currency,
+                points_added=points_added,
+                payment_method=payment_method,
+                reference=reference,
+                notes=notes,
+                created_by_id=current_user.id
+            )
+            
+            # إضافة سجل العملية للقاعدة
+            db.session.add(purchase)
+            db.session.flush()  # للحصول على معرف الشراء قبل الالتزام
+            
+            # إضافة النقاط للمستخدم عبر الدالة المحسنة
+            success = user.add_points(
+                points=points_added,
                 transaction_type='purchase',
-                amount=points_added
-            ).order_by(desc(PointsTransaction.created_at)).first()
+                related_id=purchase.id,  # استخدام معرف الشراء مباشرة
+                description=f'شراء {points_added} كربتو مقابل {amount_paid} {currency}',
+                created_by_id=current_user.id,
+                request=request
+            )
             
-            if transaction:
-                transaction.related_id = purchase.id
+            if success:
                 db.session.commit()
-            
-            flash(f'تم إضافة {points_added} كربتو إلى حساب {user.username} مقابل {amount_paid} {currency} بنجاح', 'success')
-            app.logger.info(f"Admin {current_user.username} added purchase record for user {user.username}: {points_added} points for {amount_paid} {currency}")
-            
-            # إعادة توجيه إلى صفحة المستخدم
-            return redirect(url_for('admin_user_purchases', user_id=user.id))
-        else:
-            flash('حدث خطأ أثناء محاولة إضافة النقاط', 'danger')
+                flash(f'تم إضافة {points_added} كربتو إلى حساب {user.username} مقابل {amount_paid} {currency} بنجاح', 'success')
+                app.logger.info(f"المشرف {current_user.username} أضاف سجل شراء للمستخدم {user.username}: {points_added} نقطة مقابل {amount_paid} {currency}")
+                
+                # إعادة توجيه إلى صفحة المستخدم
+                return redirect(url_for('admin_user_purchases', user_id=user.id))
+            else:
+                db.session.rollback()
+                flash('حدث خطأ أثناء محاولة إضافة النقاط', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"خطأ في إضافة عملية شراء: {str(e)}")
+            flash(f'حدث خطأ أثناء معالجة الطلب: {str(e)}', 'danger')
     
     return render_template('admin/add_purchase.html', form=form)
 

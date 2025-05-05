@@ -1,5 +1,6 @@
 import os
 import logging
+from datetime import timedelta
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -21,6 +22,14 @@ db = SQLAlchemy(model_class=Base)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "dev_secret_key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # needed for url_for to generate with https
+
+# تكوين ملفات تعريف ارتباط الجلسة
+app.config.update(
+    SESSION_COOKIE_SECURE=True,  # يضمن استخدام HTTPS فقط
+    SESSION_COOKIE_HTTPONLY=True,  # يمنع الوصول عبر JavaScript
+    SESSION_COOKIE_SAMESITE='Lax',  # يحمي من هجمات CSRF عبر المواقع
+    PERMANENT_SESSION_LIFETIME=timedelta(days=1)  # تعيين مدة الجلسة
+)
 
 # configure the database, relative to the app instance folder
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///musabaqati.db")

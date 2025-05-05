@@ -455,3 +455,37 @@ class AdminNotification(db.Model):
     
     def __repr__(self):
         return f'<AdminNotification {self.id}: {self.title[:20]}... ({self.notification_type})>'
+
+
+class SystemConfig(db.Model):
+    """نموذج لتخزين إعدادات النظام في قاعدة البيانات بدلاً من الملف"""
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), unique=True, nullable=False)  # اسم الإعداد
+    value = db.Column(db.Text, nullable=True)  # قيمة الإعداد
+    description = db.Column(db.String(255), nullable=True)  # وصف الإعداد
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # وقت آخر تحديث
+    
+    def __repr__(self):
+        return f'<SystemConfig {self.key}={self.value}>'
+    
+    @classmethod
+    def get(cls, key, default=None):
+        """الحصول على قيمة إعداد معين مع إعداد افتراضي"""
+        config = cls.query.filter_by(key=key).first()
+        if config:
+            return config.value
+        return default
+    
+    @classmethod
+    def set(cls, key, value, description=None):
+        """تعيين قيمة إعداد معين"""
+        config = cls.query.filter_by(key=key).first()
+        if config:
+            config.value = value
+            if description:
+                config.description = description
+        else:
+            config = cls(key=key, value=value, description=description)
+            db.session.add(config)
+        db.session.commit()
+        return config
