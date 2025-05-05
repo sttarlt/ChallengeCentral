@@ -2,10 +2,11 @@ from flask import render_template, redirect, url_for, flash, request, abort, jso
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import desc, func, or_
 from functools import wraps
-from app import app, db
+from app import app, db, limiter
 from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral, ReferralIPLog, AdminNotification
 import config
 import referral_security
+from audit_log import log_audit_event, monitor_login_attempts, log_sensitive_action, EVENT_TYPES, SEVERITY_LEVELS
 from forms import (
     LoginForm, RegistrationForm, CompetitionForm, RewardForm,
     ParticipationForm, RedeemRewardForm, RedemptionStatusForm,
@@ -54,6 +55,7 @@ def index():
 
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute, 100 per hour")  # حماية معدل الطلبات
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
@@ -61,17 +63,38 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
+        success = False
+        
+        # الحصول على عنوان IP
+        ip_address = request.remote_addr
+        if 'X-Forwarded-For' in request.headers:
+            ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+        
         if user and user.check_password(form.password.data):
             login_user(user)
             next_page = request.args.get('next')
             flash('تم تسجيل الدخول بنجاح', 'success')
+            success = True
+            
+            # تسجيل محاولة تسجيل الدخول الناجحة
+            details = f"تسجيل دخول ناجح من المتصفح {request.user_agent.browser}"
+            monitor_login_attempts(user.username, True, ip_address, details)
+            
             return redirect(next_page or url_for('dashboard'))
-        flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
+        else:
+            # تسجيل محاولة تسجيل الدخول الفاشلة
+            email = form.email.data
+            username = user.username if user else email  # استخدم البريد الإلكتروني إذا لم يتم العثور على المستخدم
+            details = f"محاولة فاشلة لتسجيل الدخول باستخدام البريد الإلكتروني: {email}"
+            monitor_login_attempts(username, False, ip_address, details)
+            
+            flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
     
     return render_template('login.html', form=form)
 
 
 @app.route('/register', methods=['GET', 'POST'])
+@limiter.limit("5 per minute, 20 per hour")  # حماية معدل الطلبات
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))

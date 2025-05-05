@@ -4,11 +4,13 @@ from datetime import timedelta
 import importlib.util
 import secrets
 
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_login import LoginManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 
 # Configure logging
@@ -69,6 +71,28 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'يرجى تسجيل الدخول للوصول إلى هذه الصفحة'
 login_manager.login_message_category = 'info'
+
+# تكوين حماية معدل الطلبات (Rate Limiting)
+# استخدام IP الحقيقي للمستخدم حتى مع وجود reverse proxy
+def get_real_ip():
+    """الحصول على عنوان IP الحقيقي للمستخدم مع مراعاة reverse proxy"""
+    if request and 'X-Forwarded-For' in request.headers:
+        # تقسيم سلسلة العناوين واختيار أول عنصر (عنوان العميل الأصلي)
+        x_forwarded_for = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+        if x_forwarded_for:
+            return x_forwarded_for
+    return get_remote_address()
+
+limiter = Limiter(
+    key_func=get_real_ip,  # استخدام الدالة المعرفة أعلاه 
+    app=app,
+    default_limits=["2000 per day", "500 per hour"],
+    storage_uri="memory://",  # يمكن استبدالها بـ Redis في بيئة الإنتاج
+    strategy="fixed-window"  # استراتيجية النافذة الثابتة
+)
+
+# إضافة قيود خاصة لمسارات معينة
+# سيتم تطبيقها على المسارات في ملف routes.py
 
 # initialize the app with the extension, flask-sqlalchemy >= 3.0.x
 db.init_app(app)
