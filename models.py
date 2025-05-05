@@ -1,4 +1,4 @@
-from app import db
+from app import db, app
 from flask_login import UserMixin
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -116,28 +116,49 @@ class User(UserMixin, db.Model):
         if points <= 0:
             return False
             
-        # إضافة النقاط للمستخدم
-        self.points += points
+        try:
+            # إضافة النقاط للمستخدم
+            self.points += points
+            
+            # إنشاء سجل العملية
+            transaction = PointsTransaction(
+                user_id=self.id,
+                amount=points,
+                balance_after=self.points,
+                transaction_type=transaction_type,
+                related_id=related_id,
+                description=description,
+                created_by_id=created_by_id or self.id
+            )
+            
+            # إضافة معلومات الطلب إذا كانت متوفرة
+            if request:
+                transaction.ip_address = self.get_client_ip(request)
+                transaction.user_agent = request.user_agent.string
+            
+            db.session.add(transaction)
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"خطأ في إضافة النقاط: {str(e)}")
+            return False
+    
+    def get_client_ip(self, request):
+        """
+        الحصول على عنوان IP الحقيقي للعميل بشكل آمن
+        مع مراعاة الوسطاء والشبكات العكسية
+        """
+        if 'X-Forwarded-For' in request.headers:
+            # تقسيم سلسلة العناوين واختيار أول عنصر (عنوان العميل الأصلي)
+            x_forwarded_for = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+            if x_forwarded_for:
+                # التحقق من صحة تنسيق IP (يجب إضافة تحقق أكثر تفصيلاً)
+                if len(x_forwarded_for) <= 45:  # الحد الأقصى لطول IPv6
+                    return x_forwarded_for
         
-        # إنشاء سجل العملية
-        transaction = PointsTransaction(
-            user_id=self.id,
-            amount=points,
-            balance_after=self.points,
-            transaction_type=transaction_type,
-            related_id=related_id,
-            description=description,
-            created_by_id=created_by_id or self.id
-        )
-        
-        # إضافة معلومات الطلب إذا كانت متوفرة
-        if request:
-            transaction.ip_address = request.remote_addr
-            transaction.user_agent = request.user_agent.string
-        
-        db.session.add(transaction)
-        db.session.commit()
-        return True
+        # إذا لم يكن هناك X-Forwarded-For، استخدم remote_addr
+        return request.remote_addr
     
     def use_points(self, points, transaction_type, related_id=None, description=None, created_by_id=None, request=None):
         """
@@ -154,28 +175,33 @@ class User(UserMixin, db.Model):
         if points <= 0 or self.points < points:
             return False
             
-        # خصم النقاط من المستخدم
-        self.points -= points
-        
-        # إنشاء سجل العملية
-        transaction = PointsTransaction(
-            user_id=self.id,
-            amount=-points,  # قيمة سالبة للخصم
-            balance_after=self.points,
-            transaction_type=transaction_type,
-            related_id=related_id,
-            description=description,
-            created_by_id=created_by_id or self.id
-        )
-        
-        # إضافة معلومات الطلب إذا كانت متوفرة
-        if request:
-            transaction.ip_address = request.remote_addr
-            transaction.user_agent = request.user_agent.string
-        
-        db.session.add(transaction)
-        db.session.commit()
-        return True
+        try:
+            # خصم النقاط من المستخدم
+            self.points -= points
+            
+            # إنشاء سجل العملية
+            transaction = PointsTransaction(
+                user_id=self.id,
+                amount=-points,  # قيمة سالبة للخصم
+                balance_after=self.points,
+                transaction_type=transaction_type,
+                related_id=related_id,
+                description=description,
+                created_by_id=created_by_id or self.id
+            )
+            
+            # إضافة معلومات الطلب إذا كانت متوفرة
+            if request:
+                transaction.ip_address = self.get_client_ip(request)
+                transaction.user_agent = request.user_agent.string
+            
+            db.session.add(transaction)
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"خطأ في استخدام النقاط: {str(e)}")
+            return False
     
     def generate_referral_code(self):
         """إنشاء كود إحالة فريد للمستخدم"""
@@ -198,9 +224,10 @@ class User(UserMixin, db.Model):
     
     def get_referral_url(self):
         """الحصول على رابط الإحالة الكامل"""
+        from flask import url_for
         if not self.referral_code:
             self.generate_referral_code()
-        return f"/invite?ref={self.referral_code}"
+        return url_for('invite', ref=self.referral_code, _external=True)
     
     def can_receive_referral_reward(self, reward_amount):
         """التحقق مما إذا كان المستخدم يمكنه استلام مكافأة إحالة"""
