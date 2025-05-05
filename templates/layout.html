@@ -40,8 +40,14 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('points_pricing') }}">
-                            <i class="fas fa-coins me-1"></i>شراء النقاط</a>
+                            <i class="fas fa-coins me-1"></i>شراء الكربتو</a>
                     </li>
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('friend_challenge') }}">
+                            <i class="fas fa-user-friends me-1"></i>تحدي الصديق</a>
+                    </li>
+                    {% endif %}
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('chat_rooms') }}">
@@ -58,7 +64,7 @@
                     {% if current_user.is_authenticated %}
                         <div class="me-3 d-flex align-items-center">
                             <span class="points-badge">
-                                <i class="fas fa-star me-1"></i> {{ current_user.points }} نقطة
+                                <i class="fas fa-star me-1"></i> {{ current_user.points }} كربتو
                             </span>
                         </div>
                         <div class="dropdown">
@@ -118,7 +124,7 @@
                         <li><a href="{{ url_for('competitions') }}" class="text-white-50 text-decoration-none">المسابقات</a></li>
                         <li><a href="{{ url_for('rewards') }}" class="text-white-50 text-decoration-none">الجوائز</a></li>
                         <li><a href="{{ url_for('leaderboard') }}" class="text-white-50 text-decoration-none">المتصدرين</a></li>
-                        <li><a href="{{ url_for('points_pricing') }}" class="text-white-50 text-decoration-none">شراء النقاط</a></li>
+                        <li><a href="{{ url_for('points_pricing') }}" class="text-white-50 text-decoration-none">شراء الكربتو</a></li>
                         {% if current_user.is_authenticated %}
                         <li><a href="{{ url_for('chat_rooms') }}" class="text-white-50 text-decoration-none">الدردشة</a></li>
                         {% endif %}

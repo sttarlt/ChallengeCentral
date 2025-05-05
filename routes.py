@@ -868,3 +868,80 @@ def send_direct_message():
             flash(f"{getattr(form, field).label.text}: {error}", 'danger')
     
     return redirect(url_for('chat_rooms'))
+
+# روابط تحدي الصديق (نظام الإحالة)
+@app.route('/invite')
+def invite():
+    """معالجة رابط الدعوة وتخزين كود الإحالة في الجلسة"""
+    referral_code = request.args.get('ref')
+    
+    if referral_code:
+        # التحقق من وجود المستخدم المحيل
+        referrer = User.query.filter_by(referral_code=referral_code).first()
+        
+        if referrer:
+            # تخزين كود الإحالة في الجلسة لاستخدامه لاحقاً عند التسجيل
+            session['referral_code'] = referral_code
+            
+            # إذا كان المستخدم مسجل الدخول بالفعل، فلا يمكن استخدام الإحالة
+            if current_user.is_authenticated:
+                flash('أنت مسجل الدخول بالفعل ولا يمكنك استخدام رابط الإحالة', 'info')
+                return redirect(url_for('dashboard'))
+            
+            # توجيه المستخدم إلى صفحة التسجيل
+            return redirect(url_for('register'))
+    
+    # إذا لم يتم العثور على كود إحالة صالح، نعود إلى الصفحة الرئيسية
+    flash('رابط الإحالة غير صالح', 'warning')
+    return redirect(url_for('index'))
+
+
+@app.route('/friend-challenge')
+@login_required
+def friend_challenge():
+    """صفحة تحدي الصديق (نظام الإحالة)"""
+    # التأكد من وجود كود إحالة للمستخدم وإنشاؤه إذا لم يكن موجوداً
+    if not current_user.referral_code:
+        current_user.generate_referral_code()
+        db.session.commit()
+    
+    # الحصول على رابط الإحالة الكامل
+    referral_url = request.host_url.rstrip('/') + current_user.get_referral_url()
+    
+    # عدد الأصدقاء الذين تمت إحالتهم
+    referred_friends_count = Referral.query.filter_by(referrer_id=current_user.id).count()
+    
+    # الحصول على معلومات المكافأة القادمة
+    next_milestone_info = current_user.get_next_milestone_info()
+    
+    # معلومات حدود الإحالة
+    monthly_limit = config.REFERRAL_MONTHLY_LIMIT
+    total_limit = config.REFERRAL_TOTAL_LIMIT
+    monthly_used = current_user.monthly_referral_points
+    total_used = current_user.total_referral_points
+    
+    # إذا وصل المستخدم إلى الحد الأقصى
+    reached_limit = False
+    if current_user.total_referral_points >= total_limit:
+        reached_limit = True
+    
+    # المكافآت
+    referral_reward = config.REFERRAL_REWARD_PER_FRIEND
+    welcome_bonus = config.REFERRAL_WELCOME_BONUS
+    milestone_rewards = config.REFERRAL_MILESTONE_REWARDS
+    
+    return render_template(
+        'friend_challenge.html',
+        referral_url=referral_url,
+        referred_friends_count=referred_friends_count,
+        total_referral_points=current_user.total_referral_points,
+        next_milestone_info=next_milestone_info,
+        monthly_limit=monthly_limit,
+        total_limit=total_limit,
+        monthly_used=monthly_used,
+        total_used=total_used,
+        reached_limit=reached_limit,
+        referral_reward=referral_reward,
+        welcome_bonus=welcome_bonus,
+        milestone_rewards=milestone_rewards
+    )
