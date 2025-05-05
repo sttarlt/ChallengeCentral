@@ -18,6 +18,28 @@ class PointsPackage(db.Model):
         return f'<PointsPackage {self.name}: ${self.price} = {self.points} points>'
 
 
+class PointsTransaction(db.Model):
+    """سجل جميع عمليات تعديل رصيد الكربتو"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)  # مقدار النقاط (موجب للإضافة، سالب للخصم)
+    balance_after = db.Column(db.Integer, nullable=False)  # الرصيد بعد العملية
+    transaction_type = db.Column(db.String(50), nullable=False)  # نوع العملية (مكافأة، استبدال، إحالة، إلخ)
+    related_id = db.Column(db.Integer, nullable=True)  # معرف المرتبط (مثل معرف المكافأة أو الإحالة)
+    description = db.Column(db.String(255), nullable=True)  # وصف مختصر للعملية
+    ip_address = db.Column(db.String(45), nullable=True)  # عنوان IP
+    user_agent = db.Column(db.String(255), nullable=True)  # معلومات المتصفح
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # من قام بإنشاء العملية (المستخدم نفسه أو المشرف)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # العلاقات
+    user = db.relationship('User', foreign_keys=[user_id], backref='transactions')
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    
+    def __repr__(self):
+        return f'<PointsTransaction {self.id}: {self.amount} for user {self.user_id}>'
+
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
@@ -58,16 +80,81 @@ class User(UserMixin, db.Model):
             return False
         return check_password_hash(self.password_hash, password)
     
-    def add_points(self, points):
+    def add_points(self, points, transaction_type, related_id=None, description=None, created_by_id=None, request=None):
+        """
+        إضافة نقاط للمستخدم مع تسجيل العملية
+        
+        Args:
+            points (int): عدد النقاط المراد إضافتها
+            transaction_type (str): نوع العملية (مكافأة، إحالة، إلخ)
+            related_id (int): معرف مرتبط (مثل معرف المكافأة أو الإحالة)
+            description (str): وصف مختصر للعملية
+            created_by_id (int): معرف المستخدم الذي أنشأ العملية (المستخدم نفسه أو المشرف)
+            request (Flask.request): كائن الطلب للحصول على معلومات مثل IP و User-Agent
+        """
+        if points <= 0:
+            return False
+            
+        # إضافة النقاط للمستخدم
         self.points += points
+        
+        # إنشاء سجل العملية
+        transaction = PointsTransaction(
+            user_id=self.id,
+            amount=points,
+            balance_after=self.points,
+            transaction_type=transaction_type,
+            related_id=related_id,
+            description=description,
+            created_by_id=created_by_id or self.id
+        )
+        
+        # إضافة معلومات الطلب إذا كانت متوفرة
+        if request:
+            transaction.ip_address = request.remote_addr
+            transaction.user_agent = request.user_agent.string
+        
+        db.session.add(transaction)
         db.session.commit()
+        return True
     
-    def use_points(self, points):
-        if self.points >= points:
-            self.points -= points
-            db.session.commit()
-            return True
-        return False
+    def use_points(self, points, transaction_type, related_id=None, description=None, created_by_id=None, request=None):
+        """
+        استخدام نقاط من رصيد المستخدم مع تسجيل العملية
+        
+        Args:
+            points (int): عدد النقاط المراد استخدامها
+            transaction_type (str): نوع العملية (استبدال جائزة، إلخ)
+            related_id (int): معرف مرتبط (مثل معرف الجائزة)
+            description (str): وصف مختصر للعملية
+            created_by_id (int): معرف المستخدم الذي أنشأ العملية (المستخدم نفسه أو المشرف)
+            request (Flask.request): كائن الطلب للحصول على معلومات مثل IP و User-Agent
+        """
+        if points <= 0 or self.points < points:
+            return False
+            
+        # خصم النقاط من المستخدم
+        self.points -= points
+        
+        # إنشاء سجل العملية
+        transaction = PointsTransaction(
+            user_id=self.id,
+            amount=-points,  # قيمة سالبة للخصم
+            balance_after=self.points,
+            transaction_type=transaction_type,
+            related_id=related_id,
+            description=description,
+            created_by_id=created_by_id or self.id
+        )
+        
+        # إضافة معلومات الطلب إذا كانت متوفرة
+        if request:
+            transaction.ip_address = request.remote_addr
+            transaction.user_agent = request.user_agent.string
+        
+        db.session.add(transaction)
+        db.session.commit()
+        return True
     
     def generate_referral_code(self):
         """إنشاء كود إحالة فريد للمستخدم"""
@@ -119,12 +206,21 @@ class User(UserMixin, db.Model):
         
         return True, reward_amount
     
-    def add_referral_points(self, points):
+    def add_referral_points(self, points, referral_id=None, request=None):
         """إضافة نقاط إحالة مع مراعاة الحدود"""
         can_receive, actual_points = self.can_receive_referral_reward(points)
         
         if isinstance(actual_points, (int, float)) and actual_points > 0:
-            self.add_points(actual_points)
+            # استخدام الدالة المحسنة لإضافة النقاط مع تسجيل العملية
+            self.add_points(
+                actual_points, 
+                transaction_type='referral_reward',
+                related_id=referral_id,
+                description=f'مكافأة إحالة - {actual_points} كربتو',
+                request=request
+            )
+            
+            # تحديث عدادات الإحالة
             self.monthly_referral_points += actual_points
             self.total_referral_points += actual_points
             db.session.commit()

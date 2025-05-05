@@ -359,31 +359,56 @@ def redeem_reward(reward_id):
     form = RedeemRewardForm()
     
     if form.validate_on_submit():
+        # التحقق من صحة CSRF Token
+        if not form.validate_csrf_token(form.csrf_token):
+            flash('خطأ في التحقق من طلبك. يرجى المحاولة مرة أخرى.', 'danger')
+            return redirect(url_for('rewards'))
+            
+        # التحقق من توفر الجائزة
         if not reward.is_available or reward.quantity <= 0:
             flash('هذه الجائزة غير متاحة حالياً', 'danger')
-        elif current_user.points < reward.points_required:
-            flash('ليس لديك نقاط كافية لاستبدال هذه الجائزة', 'danger')
-        else:
-            redemption = RewardRedemption(
-                user_id=current_user.id,
-                reward_id=reward.id,
-                points_spent=reward.points_required,
-                status='pending'
-            )
+            return redirect(url_for('rewards'))
             
-            # Reduce user points
-            current_user.use_points(reward.points_required)
+        # التحقق من وجود نقاط كافية
+        if current_user.points < reward.points_required:
+            flash('ليس لديك كربتو كافٍ لاستبدال هذه الجائزة', 'danger')
+            return redirect(url_for('rewards'))
             
-            # Reduce reward quantity
-            reward.quantity -= 1
-            if reward.quantity <= 0:
-                reward.is_available = False
+        # إنشاء سجل استبدال الجائزة
+        redemption = RewardRedemption(
+            user_id=current_user.id,
+            reward_id=reward.id,
+            points_spent=reward.points_required,
+            status='pending'
+        )
+        db.session.add(redemption)
+        
+        # تسجيل وخصم النقاط باستخدام النظام الجديد
+        # نلاحظ أننا نمرر كائن الطلب request لتسجيل عنوان IP والمتصفح
+        # ونحدد نوع المعاملة وسبب الخصم ومعرف الجائزة
+        success = current_user.use_points(
+            reward.points_required,
+            transaction_type='reward_redemption',
+            related_id=reward.id,
+            description=f'استبدال جائزة: {reward.name}',
+            request=request
+        )
+        
+        if not success:
+            # في حالة فشل العملية (نادر الحدوث، ولكن للأمان)
+            db.session.rollback()
+            flash('حدث خطأ أثناء محاولة استبدال الجائزة. يرجى المحاولة مرة أخرى.', 'danger')
+            return redirect(url_for('rewards'))
             
-            db.session.add(redemption)
-            db.session.commit()
-            
-            flash('تم استبدال الجائزة بنجاح! سيتم التواصل معك قريباً', 'success')
-            return redirect(url_for('dashboard'))
+        # تقليل كمية الجائزة المتاحة
+        reward.quantity -= 1
+        if reward.quantity <= 0:
+            reward.is_available = False
+        
+        db.session.commit()
+        
+        flash('تم استبدال الجائزة بنجاح! سيتم التواصل معك قريباً', 'success')
+        return redirect(url_for('dashboard'))
     
     return render_template('rewards.html', reward=reward, form=form)
 
