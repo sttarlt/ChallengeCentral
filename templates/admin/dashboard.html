@@ -40,6 +40,16 @@
         </a>
     </li>
     <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_transactions' or request.endpoint == 'admin_user_transactions' or request.endpoint == 'admin_add_points' else '' }}" href="{{ url_for('admin_transactions') }}">
+            <i class="fas fa-receipt me-1"></i> سجل المعاملات
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_referrals' else '' }}" href="{{ url_for('admin_referrals') }}">
+            <i class="fas fa-user-friends me-1"></i> الإحالات
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {{ 'active' if request.endpoint == 'admin_users' else '' }}" href="{{ url_for('admin_users') }}">
             <i class="fas fa-users me-1"></i> المستخدمين
         </a>

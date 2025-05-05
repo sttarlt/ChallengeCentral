@@ -742,6 +742,156 @@ def admin_update_redemption(redemption_id):
     return render_template('admin/redemptions.html', form=form, redemption=redemption)
 
 
+@app.route('/admin/transactions')
+@admin_required
+def admin_transactions():
+    """عرض سجل معاملات الكربتو مع إمكانية البحث والتصفية"""
+    from models import PointsTransaction
+    
+    # استخراج معايير البحث من البارامترات
+    user_id = request.args.get('user_id', type=int)
+    transaction_type = request.args.get('transaction_type')
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    page = request.args.get('page', 1, type=int)
+    per_page = 50  # عدد العناصر في كل صفحة
+    
+    # إنشاء الاستعلام الأساسي
+    query = PointsTransaction.query
+    
+    # تطبيق المرشحات إذا كانت موجودة
+    if user_id:
+        query = query.filter(PointsTransaction.user_id == user_id)
+    
+    if transaction_type:
+        query = query.filter(PointsTransaction.transaction_type == transaction_type)
+    
+    # تطبيق نطاق التاريخ
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+            query = query.filter(PointsTransaction.created_at >= start_date)
+        except ValueError:
+            flash('صيغة تاريخ البداية غير صحيحة، تم تجاهلها', 'warning')
+    
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+            # إضافة يوم كامل لتضمين كل معاملات اليوم المحدد
+            end_date = end_date.replace(hour=23, minute=59, second=59)
+            query = query.filter(PointsTransaction.created_at <= end_date)
+        except ValueError:
+            flash('صيغة تاريخ النهاية غير صحيحة، تم تجاهلها', 'warning')
+    
+    # ترتيب النتائج من الأحدث إلى الأقدم
+    query = query.order_by(PointsTransaction.created_at.desc())
+    
+    # تنفيذ الاستعلام مع التقسيم إلى صفحات
+    pagination = query.paginate(page=page, per_page=per_page)
+    transactions = pagination.items
+    
+    return render_template(
+        'admin/transactions.html',
+        transactions=transactions,
+        pagination=pagination
+    )
+
+
+@app.route('/admin/transactions/user/<int:user_id>')
+@admin_required
+def admin_user_transactions(user_id):
+    """عرض سجل معاملات الكربتو لمستخدم محدد"""
+    from models import PointsTransaction
+    
+    # التحقق من وجود المستخدم
+    user = User.query.get_or_404(user_id)
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = 20  # عدد العناصر في كل صفحة
+    
+    # الحصول على معاملات المستخدم
+    query = PointsTransaction.query.filter_by(user_id=user_id).order_by(PointsTransaction.created_at.desc())
+    pagination = query.paginate(page=page, per_page=per_page)
+    transactions = pagination.items
+    
+    return render_template(
+        'admin/transactions.html',
+        transactions=transactions,
+        pagination=pagination,
+        user=user
+    )
+
+
+@app.route('/admin/add-points', methods=['GET', 'POST'])
+@admin_required
+def admin_add_points():
+    """إضافة أو خصم كربتو لمستخدم من قبل المشرف"""
+    from models import PointsTransaction
+    
+    form = AdminPointsForm()
+    
+    if form.validate_on_submit():
+        # البحث عن المستخدم بواسطة اسم المستخدم
+        user = User.query.filter_by(username=form.username.data).first()
+        
+        if not user:
+            flash(f'لم يتم العثور على المستخدم: {form.username.data}', 'danger')
+            return redirect(url_for('admin_add_points'))
+        
+        points = form.points.data
+        description = form.description.data
+        notify_user = form.notify_user.data
+        
+        # التحقق مما إذا كانت العملية إضافة أو خصم
+        if points > 0:
+            # إضافة نقاط
+            success = user.add_points(
+                points=points, 
+                transaction_type='admin_adjustment',
+                description=description,
+                created_by_id=current_user.id,
+                request=request
+            )
+            
+            if success:
+                flash(f'تم إضافة {points} كربتو إلى حساب {user.username} بنجاح', 'success')
+                app.logger.info(f"Admin {current_user.username} added {points} points to user {user.username}")
+            else:
+                flash('حدث خطأ أثناء محاولة إضافة النقاط', 'danger')
+        
+        elif points < 0:
+            # خصم نقاط (تحويل إلى رقم موجب للتمرير إلى دالة use_points)
+            absolute_points = abs(points)
+            
+            # التحقق من كفاية الرصيد
+            if user.points < absolute_points:
+                flash(f'لا يملك المستخدم {user.username} رصيد كاف. الرصيد الحالي: {user.points} كربتو', 'danger')
+                return redirect(url_for('admin_add_points'))
+            
+            success = user.use_points(
+                points=absolute_points, 
+                transaction_type='admin_adjustment',
+                description=description,
+                created_by_id=current_user.id,
+                request=request
+            )
+            
+            if success:
+                flash(f'تم خصم {absolute_points} كربتو من حساب {user.username} بنجاح', 'success')
+                app.logger.info(f"Admin {current_user.username} deducted {absolute_points} points from user {user.username}")
+            else:
+                flash('حدث خطأ أثناء محاولة خصم النقاط', 'danger')
+        
+        else:
+            # لا تغيير (صفر نقاط)
+            flash('لم يتم تنفيذ أي تغيير، تم إدخال صفر نقاط', 'warning')
+            
+        # إعادة توجيه إلى صفحة معاملات المستخدم
+        return redirect(url_for('admin_user_transactions', user_id=user.id))
+    
+    return render_template('admin/add_points.html', form=form)
+
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404
