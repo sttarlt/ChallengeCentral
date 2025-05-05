@@ -1,0 +1,137 @@
+{% extends "layout.html" %}
+
+{% block title %}الجوائز - مسابقاتي{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">الجوائز المتاحة</h1>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" class="form-control" placeholder="ابحث عن جائزة..." id="reward-search" {% if current_user.is_authenticated %}data-user-points="{{ current_user.points }}"{% endif %}>
+            <button class="btn btn-outline-secondary" type="button">بحث</button>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="d-flex justify-content-end">
+            <select class="form-select" id="reward-filter" style="max-width: 200px;">
+                <option value="all" selected>جميع الجوائز</option>
+                <option value="low-to-high">النقاط (الأقل إلى الأعلى)</option>
+                <option value="high-to-low">النقاط (الأعلى إلى الأقل)</option>
+                {% if current_user.is_authenticated %}
+                <option value="affordable">الجوائز المتاحة لنقاطي</option>
+                {% endif %}
+            </select>
+        </div>
+    </div>
+</div>
+
+{% if current_user.is_authenticated %}
+<div class="alert alert-info mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-info-circle me-2"></i>
+            لديك حالياً <strong>{{ current_user.points }} نقطة</strong> يمكنك استبدالها بجوائز قيمة!
+        </div>
+        <a href="{{ url_for('competitions') }}" class="btn btn-primary btn-sm">احصل على المزيد من النقاط</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="row" id="rewards-container">
+    {% if rewards %}
+        {% for reward in rewards %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 card-reward shadow-sm reward-item" id="reward-{{ reward.id }}" data-points="{{ reward.points_required }}">
+                <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                    <span class="badge bg-secondary">{{ reward.points_required }} نقطة</span>
+                    {% if reward.quantity <= 5 and reward.quantity > 0 %}
+                        <span class="badge bg-warning text-dark">باقي {{ reward.quantity }} فقط</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ reward.name }}</h5>
+                    <p class="card-text">{{ reward.description }}</p>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    {% if current_user.is_authenticated %}
+                        <button class="btn btn-outline-secondary w-100 redeem-button" 
+                            data-reward-id="{{ reward.id }}" 
+                            data-reward-name="{{ reward.name }}" 
+                            data-points-cost="{{ reward.points_required }}" 
+                            data-user-points="{{ current_user.points }}"
+                            {% if not reward.is_available or reward.quantity <= 0 %}disabled{% endif %}
+                        >
+                            {% if not reward.is_available or reward.quantity <= 0 %}
+                                نفذت الكمية
+                            {% elif current_user.points < reward.points_required %}
+                                نقاطك غير كافية
+                            {% else %}
+                                استبدال الجائزة
+                            {% endif %}
+                        </button>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-primary w-100">سجل دخول للاستبدال</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                لا توجد جوائز متاحة حالياً. يرجى التحقق مرة أخرى لاحقاً.
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirm-redemption-modal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">تأكيد استبدال الجائزة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>هل أنت متأكد من رغبتك في استبدال جائزة <strong id="reward-name"></strong>؟</p>
+                <ul>
+                    <li>النقاط المطلوبة: <span id="points-cost" class="text-primary"></span></li>
+                    <li>النقاط المتبقية بعد الاستبدال: <span id="remaining-points" class="text-primary"></span></li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <form id="redemption-form" method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-primary">تأكيد الاستبدال</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Insufficient Points Modal -->
+<div class="modal fade" id="insufficient-points-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">نقاط غير كافية</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Will be filled dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                <a href="{{ url_for('competitions') }}" class="btn btn-primary">المزيد من المسابقات</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="{{ url_for('static', filename='js/rewards.js') }}"></script>
+{% endblock %}

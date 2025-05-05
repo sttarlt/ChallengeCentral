@@ -1,0 +1,191 @@
+{% extends "layout.html" %}
+
+{% block title %}لوحة التحكم - مسابقاتي{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">لوحة التحكم</h1>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">الملف الشخصي</h5>
+                <div class="text-center my-4">
+                    <div class="avatar-circle mb-3">
+                        <i class="fas fa-user fa-3x text-primary"></i>
+                    </div>
+                    <h4>{{ current_user.username }}</h4>
+                    <p class="text-muted">{{ current_user.email }}</p>
+                </div>
+                <div class="d-flex justify-content-center">
+                    <div class="text-center mx-3">
+                        <h4 class="text-primary" data-count="{{ current_user.points }}">{{ current_user.points }}</h4>
+                        <small class="text-muted">النقاط</small>
+                    </div>
+                    <div class="text-center mx-3">
+                        <h4 class="text-primary" data-count="{{ completed_participations|length }}">{{ completed_participations|length }}</h4>
+                        <small class="text-muted">المسابقات المكتملة</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header bg-light">
+                <ul class="nav nav-tabs card-header-tabs" id="myTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="ongoing-tab" data-bs-toggle="tab" data-bs-target="#ongoing" type="button" role="tab" aria-controls="ongoing" aria-selected="true">المسابقات الجارية</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button" role="tab" aria-controls="completed" aria-selected="false">المسابقات المكتملة</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="rewards-tab" data-bs-toggle="tab" data-bs-target="#rewards" type="button" role="tab" aria-controls="rewards" aria-selected="false">الجوائز المستبدلة</button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="myTabContent">
+                    <div class="tab-pane fade show active" id="ongoing" role="tabpanel" aria-labelledby="ongoing-tab">
+                        {% if ongoing_participations %}
+                            <div class="list-group">
+                                {% for participation in ongoing_participations %}
+                                <a href="{{ url_for('competition_details', competition_id=participation.competition.id) }}" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">{{ participation.competition.title }}</h5>
+                                        <small>تنتهي في {{ participation.competition.end_date.strftime('%d/%m/%Y') }}</small>
+                                    </div>
+                                    <p class="mb-1">{{ participation.competition.description|truncate(100) }}</p>
+                                    <small class="text-primary">{{ participation.competition.points }} نقطة</small>
+                                </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                ليس لديك أي مسابقات جارية. <a href="{{ url_for('competitions') }}" class="alert-link">استكشف المسابقات المتاحة</a>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="tab-pane fade" id="completed" role="tabpanel" aria-labelledby="completed-tab">
+                        {% if completed_participations %}
+                            <div class="list-group">
+                                {% for participation in completed_participations %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">{{ participation.competition.title }}</h5>
+                                        <small class="text-muted">انتهت في {{ participation.competition.end_date.strftime('%d/%m/%Y') }}</small>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <span class="badge bg-success">مكتملة</span>
+                                        <span class="text-primary">{{ participation.score }} نقطة</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                ليس لديك أي مسابقات مكتملة بعد.
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="tab-pane fade" id="rewards" role="tabpanel" aria-labelledby="rewards-tab">
+                        {% if reward_redemptions %}
+                            <div class="list-group">
+                                {% for redemption in reward_redemptions %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">{{ redemption.reward.name }}</h5>
+                                        <small class="text-muted">{{ redemption.created_at.strftime('%d/%m/%Y') }}</small>
+                                    </div>
+                                    <p class="mb-1">{{ redemption.reward.description|truncate(100) }}</p>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        {% if redemption.status == 'pending' %}
+                                            <span class="badge bg-warning text-dark">قيد الانتظار</span>
+                                        {% elif redemption.status == 'completed' %}
+                                            <span class="badge bg-success">تم التسليم</span>
+                                        {% elif redemption.status == 'cancelled' %}
+                                            <span class="badge bg-danger">ملغي</span>
+                                        {% endif %}
+                                        <span class="text-muted">{{ redemption.points_spent }} نقطة</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                لم تقم باستبدال أي جوائز بعد. <a href="{{ url_for('rewards') }}" class="alert-link">استكشف الجوائز المتاحة</a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">مسابقات قد تهمك</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="recommended-competitions">
+                    <!-- أماكن خالية. سيتم ملؤها بالبيانات الحقيقية من قاعدة البيانات -->
+                    <div class="col-12">
+                        <div class="alert alert-info text-center">
+                            جارٍ تحميل المسابقات المقترحة...
+                            <div class="spinner-border spinner-border-sm text-primary ms-2" role="status">
+                                <span class="visually-hidden">جاري التحميل...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Simulate loading recommended competitions (in a real app, this would come from the backend)
+    setTimeout(() => {
+        const recommendedDiv = document.getElementById('recommended-competitions');
+        
+        // Check if there are any ongoing competitions
+        {% if ongoing_participations %}
+            recommendedDiv.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-success">
+                        أنت مشارك حالياً في {{ ongoing_participations|length }} مسابقة. استمر في تحقيق التقدم!
+                    </div>
+                </div>
+            `;
+        {% else %}
+            // Fetch active competitions from the backend in a real implementation
+            fetch('{{ url_for("competitions") }}')
+                .then(response => {
+                    // In a real implementation, you would process the JSON response
+                    // Here we're just simulating with a placeholder
+                    recommendedDiv.innerHTML = `
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                لم تشارك في أي مسابقة بعد. <a href="{{ url_for('competitions') }}" class="alert-link">استكشف المسابقات المتاحة الآن</a>
+                            </div>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error fetching recommended competitions:', error);
+                });
+        {% endif %}
+    }, 1000);
+});
+</script>
+{% endblock %}

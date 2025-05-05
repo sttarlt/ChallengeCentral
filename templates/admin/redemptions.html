@@ -1,0 +1,168 @@
+{% extends "layout.html" %}
+
+{% block title %}إدارة طلبات الاستبدال - مسابقاتي{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>إدارة طلبات الاستبدال</h1>
+    <div>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> العودة للوحة التحكم
+        </a>
+    </div>
+</div>
+
+{% if form and redemption %}
+<!-- Edit Redemption Status Form -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">تحديث حالة الاستبدال</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h6>بيانات المستخدم:</h6>
+                <p><strong>الاسم:</strong> {{ redemption.user.username }}</p>
+                <p><strong>البريد الإلكتروني:</strong> {{ redemption.user.email }}</p>
+                <p><strong>النقاط المستخدمة:</strong> {{ redemption.points_spent }}</p>
+            </div>
+            <div class="col-md-6">
+                <h6>بيانات الجائزة:</h6>
+                <p><strong>الاسم:</strong> {{ redemption.reward.name }}</p>
+                <p><strong>الوصف:</strong> {{ redemption.reward.description|truncate(100) }}</p>
+                <p><strong>تاريخ الطلب:</strong> {{ redemption.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+            </div>
+        </div>
+        
+        <form method="POST" action="{{ url_for('admin_update_redemption', redemption_id=redemption.id) }}">
+            {{ form.hidden_tag() }}
+            
+            <div class="mb-3">
+                <label for="{{ form.status.id }}" class="form-label">حالة الاستبدال</label>
+                {{ form.status(class="form-control") }}
+                {% if form.status.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.status.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{{ url_for('admin_redemptions') }}" class="btn btn-outline-secondary">إلغاء</a>
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% else %}
+<!-- Redemptions List -->
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h5 class="mb-0">قائمة طلبات الاستبدال</h5>
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="redemptionSearch" placeholder="بحث...">
+                    <select class="form-select" id="statusFilter" style="max-width: 150px;">
+                        <option value="all">جميع الطلبات</option>
+                        <option value="pending">قيد الانتظار</option>
+                        <option value="completed">مكتملة</option>
+                        <option value="cancelled">ملغية</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if redemptions %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">المستخدم</th>
+                            <th scope="col">الجائزة</th>
+                            <th scope="col">النقاط</th>
+                            <th scope="col">التاريخ</th>
+                            <th scope="col">الحالة</th>
+                            <th scope="col">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for redemption in redemptions %}
+                        <tr data-status="{{ redemption.status }}">
+                            <th scope="row">{{ redemption.id }}</th>
+                            <td>{{ redemption.user.username }}</td>
+                            <td>{{ redemption.reward.name }}</td>
+                            <td>{{ redemption.points_spent }}</td>
+                            <td>{{ redemption.created_at.strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                {% if redemption.status == 'pending' %}
+                                    <span class="badge bg-warning text-dark">قيد الانتظار</span>
+                                {% elif redemption.status == 'completed' %}
+                                    <span class="badge bg-success">مكتمل</span>
+                                {% elif redemption.status == 'cancelled' %}
+                                    <span class="badge bg-danger">ملغي</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin_update_redemption', redemption_id=redemption.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i> تحديث الحالة
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="p-4 text-center">
+                <div class="alert alert-info mb-0">
+                    لا توجد طلبات استبدال حالياً.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Search and filtering for redemptions
+        const searchInput = document.getElementById('redemptionSearch');
+        const statusFilter = document.getElementById('statusFilter');
+        
+        if (searchInput && statusFilter) {
+            const tableRows = document.querySelectorAll('table tbody tr');
+            
+            const filterTable = () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filterStatus = statusFilter.value;
+                
+                tableRows.forEach(row => {
+                    const username = row.cells[1].textContent.toLowerCase();
+                    const rewardName = row.cells[2].textContent.toLowerCase();
+                    const status = row.getAttribute('data-status');
+                    
+                    let showRow = username.includes(searchTerm) || rewardName.includes(searchTerm);
+                    
+                    if (filterStatus !== 'all' && status !== filterStatus) {
+                        showRow = false;
+                    }
+                    
+                    row.style.display = showRow ? '' : 'none';
+                });
+            };
+            
+            searchInput.addEventListener('input', filterTable);
+            statusFilter.addEventListener('change', filterTable);
+        }
+    });
+</script>
+{% endblock %}

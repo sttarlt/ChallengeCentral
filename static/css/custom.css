@@ -1,0 +1,166 @@
+/* Arabic Font - Implementing RTL */
+html {
+    direction: rtl;
+}
+
+/* Custom colors based on requirements */
+:root {
+    --primary-color: #2563EB;
+    --secondary-color: #F97316;
+    --accent-color: #FCD34D;
+    --background-color: #FFFFFF;
+    --text-color: #1F2937;
+}
+
+/* Typography */
+body {
+    font-family: 'Inter', 'Arial', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', 'Arial', sans-serif;
+}
+
+/* Header and Logo */
+.brand-logo {
+    font-weight: bold;
+    font-size: 1.8rem;
+    color: var(--primary-color);
+}
+
+/* Card styles */
+.card {
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-competition {
+    border-left: 4px solid var(--primary-color);
+}
+
+.card-reward {
+    border-left: 4px solid var(--secondary-color);
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.btn-accent {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: var(--text-color);
+}
+
+/* Points badge */
+.points-badge {
+    background-color: var(--accent-color);
+    color: var(--text-color);
+    font-weight: bold;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+}
+
+/* Leaderboard */
+.leaderboard-item {
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    transition: background-color 0.2s ease;
+}
+
+.leaderboard-item:hover {
+    background-color: rgba(37, 99, 235, 0.1);
+}
+
+.leaderboard-position {
+    font-weight: bold;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.position-1 {
+    background-color: gold;
+    color: #333;
+}
+
+.position-2 {
+    background-color: silver;
+    color: #333;
+}
+
+.position-3 {
+    background-color: #cd7f32; /* bronze */
+    color: white;
+}
+
+/* Form styling */
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.25);
+}
+
+/* Footer */
+.footer {
+    background-color: var(--text-color);
+    color: white;
+    padding: 2rem 0;
+    margin-top: 2rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    .brand-logo {
+        font-size: 1.4rem;
+    }
+}
+
+/* Admin dashboard */
+.admin-card {
+    border-left: 4px solid var(--text-color);
+}
+
+.status-pending {
+    color: var(--secondary-color);
+}
+
+.status-completed {
+    color: green;
+}
+
+.status-cancelled {
+    color: red;
+}
+
+/* Animation for rewards */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.reward-item:hover {
+    animation: pulse 1s infinite;
+}

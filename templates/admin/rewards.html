@@ -1,0 +1,279 @@
+{% extends "layout.html" %}
+
+{% block title %}إدارة الجوائز - مسابقاتي{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>إدارة الجوائز</h1>
+    <div>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-arrow-right me-1"></i> العودة للوحة التحكم
+        </a>
+        <a href="{{ url_for('admin_new_reward') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> إضافة جائزة جديدة
+        </a>
+    </div>
+</div>
+
+{% if form and not reward %}
+<!-- Add New Reward Form -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">إضافة جائزة جديدة</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_new_reward') }}">
+            {{ form.hidden_tag() }}
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.name.id }}" class="form-label">اسم الجائزة</label>
+                    {{ form.name(class="form-control", placeholder="أدخل اسم الجائزة") }}
+                    {% if form.name.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.name.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.points_required.id }}" class="form-label">النقاط المطلوبة</label>
+                    {{ form.points_required(class="form-control", placeholder="عدد النقاط المطلوبة للاستبدال") }}
+                    {% if form.points_required.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.points_required.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.quantity.id }}" class="form-label">الكمية</label>
+                    {{ form.quantity(class="form-control", placeholder="عدد الجوائز المتوفرة") }}
+                    {% if form.quantity.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.quantity.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6 mb-3 d-flex align-items-end">
+                    <div class="form-check mb-3">
+                        {{ form.is_available(class="form-check-input") }}
+                        <label class="form-check-label" for="{{ form.is_available.id }}">متاح</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.description.id }}" class="form-label">وصف الجائزة</label>
+                {{ form.description(class="form-control", rows="5", placeholder="أدخل وصفاً تفصيلياً للجائزة") }}
+                {% if form.description.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.description.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{{ url_for('admin_rewards') }}" class="btn btn-outline-secondary">إلغاء</a>
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% elif form and reward %}
+<!-- Edit Reward Form -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">تعديل الجائزة</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_edit_reward', reward_id=reward.id) }}">
+            {{ form.hidden_tag() }}
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.name.id }}" class="form-label">اسم الجائزة</label>
+                    {{ form.name(class="form-control", placeholder="أدخل اسم الجائزة") }}
+                    {% if form.name.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.name.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.points_required.id }}" class="form-label">النقاط المطلوبة</label>
+                    {{ form.points_required(class="form-control", placeholder="عدد النقاط المطلوبة للاستبدال") }}
+                    {% if form.points_required.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.points_required.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.quantity.id }}" class="form-label">الكمية</label>
+                    {{ form.quantity(class="form-control", placeholder="عدد الجوائز المتوفرة") }}
+                    {% if form.quantity.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.quantity.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6 mb-3 d-flex align-items-end">
+                    <div class="form-check mb-3">
+                        {{ form.is_available(class="form-check-input") }}
+                        <label class="form-check-label" for="{{ form.is_available.id }}">متاح</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.description.id }}" class="form-label">وصف الجائزة</label>
+                {{ form.description(class="form-control", rows="5", placeholder="أدخل وصفاً تفصيلياً للجائزة") }}
+                {% if form.description.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.description.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{{ url_for('admin_rewards') }}" class="btn btn-outline-secondary">إلغاء</a>
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% else %}
+<!-- Rewards List -->
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h5 class="mb-0">قائمة الجوائز</h5>
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="rewardSearch" placeholder="بحث عن جائزة...">
+                    <select class="form-select" id="availabilityFilter" style="max-width: 150px;">
+                        <option value="all">الجميع</option>
+                        <option value="available">المتاحة</option>
+                        <option value="unavailable">غير المتاحة</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if rewards %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">الاسم</th>
+                            <th scope="col">النقاط المطلوبة</th>
+                            <th scope="col">الكمية</th>
+                            <th scope="col">الحالة</th>
+                            <th scope="col">عدد الاستبدالات</th>
+                            <th scope="col">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reward in rewards %}
+                        <tr>
+                            <th scope="row">{{ reward.id }}</th>
+                            <td>{{ reward.name }}</td>
+                            <td>{{ reward.points_required }}</td>
+                            <td>{{ reward.quantity }}</td>
+                            <td>
+                                {% if reward.is_available and reward.quantity > 0 %}
+                                    <span class="badge bg-success">متاح</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">غير متاح</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ reward.redemptions.count() }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{{ url_for('admin_edit_reward', reward_id=reward.id) }}" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="تعديل">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="p-4 text-center">
+                <div class="alert alert-info mb-0">
+                    لا توجد جوائز. أضف جائزة جديدة للبدء.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Search and filtering for rewards
+        const searchInput = document.getElementById('rewardSearch');
+        const availabilityFilter = document.getElementById('availabilityFilter');
+        
+        if (searchInput && availabilityFilter) {
+            const tableRows = document.querySelectorAll('table tbody tr');
+            
+            const filterTable = () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const availabilityValue = availabilityFilter.value;
+                
+                tableRows.forEach(row => {
+                    const name = row.cells[1].textContent.toLowerCase();
+                    const isAvailable = row.cells[4].textContent.trim() === 'متاح';
+                    
+                    let showRow = name.includes(searchTerm);
+                    
+                    if (availabilityValue === 'available' && !isAvailable) {
+                        showRow = false;
+                    } else if (availabilityValue === 'unavailable' && isAvailable) {
+                        showRow = false;
+                    }
+                    
+                    row.style.display = showRow ? '' : 'none';
+                });
+            };
+            
+            searchInput.addEventListener('input', filterTable);
+            availabilityFilter.addEventListener('change', filterTable);
+        }
+    });
+</script>
+{% endblock %}

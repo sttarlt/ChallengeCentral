@@ -1,0 +1,187 @@
+{% extends "layout.html" %}
+
+{% block title %}إدارة المستخدمين - مسابقاتي{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>إدارة المستخدمين</h1>
+    <div>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-right me-1"></i> العودة للوحة التحكم
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h5 class="mb-0">قائمة المستخدمين</h5>
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="userSearch" placeholder="بحث عن مستخدم...">
+                    <select class="form-select" id="pointsFilter" style="max-width: 180px;">
+                        <option value="all">جميع المستخدمين</option>
+                        <option value="high">النقاط الأعلى</option>
+                        <option value="low">النقاط الأقل</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if users %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">اسم المستخدم</th>
+                            <th scope="col">البريد الإلكتروني</th>
+                            <th scope="col">النقاط</th>
+                            <th scope="col">تاريخ التسجيل</th>
+                            <th scope="col">المسابقات</th>
+                            <th scope="col">الاستبدالات</th>
+                            <th scope="col">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <th scope="row">{{ user.id }}</th>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.points }}</td>
+                            <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ user.participations.count() }}</td>
+                            <td>{{ user.redemptions.count() }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary edit-points-btn" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editPointsModal"
+                                            data-user-id="{{ user.id }}"
+                                            data-username="{{ user.username }}"
+                                            data-points="{{ user.points }}">
+                                        <i class="fas fa-star"></i> تعديل النقاط
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="p-4 text-center">
+                <div class="alert alert-info mb-0">
+                    لا يوجد مستخدمين مسجلين بعد.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Edit Points Modal -->
+<div class="modal fade" id="editPointsModal" tabindex="-1" aria-labelledby="editPointsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPointsModalLabel">تعديل نقاط المستخدم</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editPointsForm" method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" id="userId" name="user_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">المستخدم</label>
+                        <input type="text" class="form-control" id="usernameDisplay" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">النقاط الحالية</label>
+                        <input type="text" class="form-control" id="currentPoints" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="newPoints" class="form-label">النقاط الجديدة</label>
+                        <input type="number" class="form-control" id="newPoints" name="points" min="0" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">سبب التغيير</label>
+                        <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-primary">حفظ التغييرات</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Search and filtering for users
+        const searchInput = document.getElementById('userSearch');
+        const pointsFilter = document.getElementById('pointsFilter');
+        
+        if (searchInput && pointsFilter) {
+            const tableRows = document.querySelectorAll('table tbody tr');
+            
+            const filterTable = () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filterValue = pointsFilter.value;
+                
+                tableRows.forEach(row => {
+                    const username = row.cells[1].textContent.toLowerCase();
+                    const email = row.cells[2].textContent.toLowerCase();
+                    const points = parseInt(row.cells[3].textContent);
+                    
+                    let showRow = username.includes(searchTerm) || email.includes(searchTerm);
+                    
+                    if (filterValue === 'high') {
+                        // Sort by points (highest first)
+                        // This would need server-side implementation for proper sorting
+                    } else if (filterValue === 'low') {
+                        // Sort by points (lowest first)
+                        // This would need server-side implementation for proper sorting
+                    }
+                    
+                    row.style.display = showRow ? '' : 'none';
+                });
+            };
+            
+            searchInput.addEventListener('input', filterTable);
+            pointsFilter.addEventListener('change', filterTable);
+        }
+        
+        // Edit points modal functionality
+        const editButtons = document.querySelectorAll('.edit-points-btn');
+        
+        editButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.getAttribute('data-user-id');
+                const username = this.getAttribute('data-username');
+                const points = this.getAttribute('data-points');
+                
+                document.getElementById('userId').value = userId;
+                document.getElementById('usernameDisplay').value = username;
+                document.getElementById('currentPoints').value = points;
+                document.getElementById('newPoints').value = points;
+                
+                // Set the form action dynamically
+                // This would point to a route that handles updating user points
+                document.getElementById('editPointsForm').action = `/admin/users/${userId}/update-points`;
+            });
+        });
+    });
+</script>
+{% endblock %}

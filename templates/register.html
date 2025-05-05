@@ -1,0 +1,131 @@
+{% extends "layout.html" %}
+
+{% block title %}إنشاء حساب جديد - مسابقاتي{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white text-center">
+                <h3 class="my-2">إنشاء حساب جديد</h3>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('register') }}">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.username.id }}" class="form-label">اسم المستخدم</label>
+                        {{ form.username(class="form-control", placeholder="اختر اسم مستخدم مميز") }}
+                        {% if form.username.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.username.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.email.id }}" class="form-label">البريد الإلكتروني</label>
+                        {{ form.email(class="form-control", placeholder="أدخل بريدك الإلكتروني") }}
+                        {% if form.email.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.email.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.password.id }}" class="form-label">كلمة المرور</label>
+                        {{ form.password(class="form-control", placeholder="اختر كلمة مرور قوية (8 أحرف على الأقل)") }}
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="{{ form.confirm_password.id }}" class="form-label">تأكيد كلمة المرور</label>
+                        {{ form.confirm_password(class="form-control", placeholder="أعد كتابة كلمة المرور") }}
+                        {% if form.confirm_password.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.confirm_password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center py-3">
+                <div class="mb-2">لديك حساب بالفعل؟ <a href="{{ url_for('login') }}" class="text-decoration-none">تسجيل الدخول</a></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-8 mx-auto">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h4>لماذا تنشئ حساب في مسابقاتي؟</h4>
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="d-flex mb-3">
+                            <div class="me-3 text-primary">
+                                <i class="fas fa-trophy fa-2x"></i>
+                            </div>
+                            <div>
+                                <h5>شارك في المسابقات</h5>
+                                <p class="text-muted">شارك في مسابقات متنوعة وتحديات أسبوعية للفوز بالنقاط</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex mb-3">
+                            <div class="me-3 text-warning">
+                                <i class="fas fa-star fa-2x"></i>
+                            </div>
+                            <div>
+                                <h5>اجمع النقاط</h5>
+                                <p class="text-muted">كلما شاركت أكثر، جمعت المزيد من النقاط</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex mb-3">
+                            <div class="me-3 text-secondary">
+                                <i class="fas fa-gift fa-2x"></i>
+                            </div>
+                            <div>
+                                <h5>استبدل الجوائز</h5>
+                                <p class="text-muted">استبدل نقاطك بجوائز قيمة متنوعة</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex mb-3">
+                            <div class="me-3 text-info">
+                                <i class="fas fa-users fa-2x"></i>
+                            </div>
+                            <div>
+                                <h5>تنافس مع الآخرين</h5>
+                                <p class="text-muted">ظهر في لوحة المتصدرين وتنافس مع مستخدمين آخرين</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

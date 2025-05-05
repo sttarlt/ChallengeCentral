@@ -1,0 +1,145 @@
+{% extends "layout.html" %}
+
+{% block title %}المسابقات - مسابقاتي{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">المسابقات</h1>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" class="form-control" placeholder="ابحث عن مسابقة..." id="competition-search">
+            <button class="btn btn-outline-primary" type="button">بحث</button>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="d-flex justify-content-end">
+            <select class="form-select" id="competition-filter" style="max-width: 200px;">
+                <option value="all" selected>جميع المسابقات</option>
+                <option value="active">المسابقات النشطة</option>
+                <option value="points-asc">النقاط (الأقل إلى الأعلى)</option>
+                <option value="points-desc">النقاط (الأعلى إلى الأقل)</option>
+                <option value="date-asc">التاريخ (الأقرب أولاً)</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<section class="mb-5">
+    <h2 class="mb-4">المسابقات النشطة</h2>
+    
+    <div class="row" id="active-competitions">
+        {% if active_competitions %}
+            {% for competition in active_competitions %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 card-competition shadow-sm" data-points="{{ competition.points }}">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                        <span class="badge bg-primary">{{ competition.points }} نقطة</span>
+                        <small class="text-muted">تنتهي في {{ competition.end_date.strftime('%d/%m/%Y') }}</small>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">{{ competition.title }}</h5>
+                        <p class="card-text">{{ competition.description|truncate(150) }}</p>
+                        
+                        <!-- Progress bar showing time remaining -->
+                        {% set now = now or datetime.utcnow() %}
+                        {% set total_duration = (competition.end_date - competition.start_date).total_seconds() %}
+                        {% set elapsed = (now - competition.start_date).total_seconds() %}
+                        {% set percent = (elapsed / total_duration * 100)|int %}
+                        {% if percent < 0 %}{% set percent = 0 %}{% endif %}
+                        {% if percent > 100 %}{% set percent = 100 %}{% endif %}
+                        
+                        <div class="mt-3">
+                            <label class="form-label d-flex justify-content-between">
+                                <small>{{ competition.start_date.strftime('%d/%m/%Y') }}</small>
+                                <small>{{ competition.end_date.strftime('%d/%m/%Y') }}</small>
+                            </label>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ percent }}%" aria-valuenow="{{ percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <a href="{{ url_for('competition_details', competition_id=competition.id) }}" class="btn btn-outline-primary w-100">التفاصيل والمشاركة</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    لا توجد مسابقات نشطة حالياً. يرجى التحقق مرة أخرى لاحقاً.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<section>
+    <h2 class="mb-4">المسابقات السابقة</h2>
+    
+    <div class="row">
+        {% if past_competitions %}
+            {% for competition in past_competitions %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                        <span class="badge bg-secondary">{{ competition.points }} نقطة</span>
+                        <small class="text-muted">انتهت في {{ competition.end_date.strftime('%d/%m/%Y') }}</small>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">{{ competition.title }}</h5>
+                        <p class="card-text">{{ competition.description|truncate(150) }}</p>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <a href="{{ url_for('competition_details', competition_id=competition.id) }}" class="btn btn-outline-secondary w-100">عرض النتائج</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    لا توجد مسابقات سابقة.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('competition-search');
+    const filterSelect = document.getElementById('competition-filter');
+    const competitionCards = document.querySelectorAll('.card-competition');
+    
+    // Search functionality
+    searchInput.addEventListener('input', filterCompetitions);
+    filterSelect.addEventListener('change', filterCompetitions);
+    
+    function filterCompetitions() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const filterValue = filterSelect.value;
+        
+        competitionCards.forEach(card => {
+            const title = card.querySelector('.card-title').textContent.toLowerCase();
+            const description = card.querySelector('.card-text').textContent.toLowerCase();
+            const points = parseInt(card.getAttribute('data-points'));
+            
+            let showCard = title.includes(searchTerm) || description.includes(searchTerm);
+            
+            // Apply additional filters
+            if (filterValue === 'points-asc') {
+                // Already sorted in the DOM, just show filtered results
+            } else if (filterValue === 'points-desc') {
+                // Already sorted in the DOM, just show filtered results
+            }
+            
+            card.closest('.col-md-6').style.display = showCard ? 'block' : 'none';
+        });
+    }
+});
+</script>
+{% endblock %}

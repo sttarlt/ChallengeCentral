@@ -1,0 +1,153 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ competition.title }} - مسابقاتي{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">الرئيسية</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('competitions') }}">المسابقات</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ competition.title }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h1 class="card-title mb-3">{{ competition.title }}</h1>
+                
+                <div class="d-flex justify-content-between mb-4">
+                    <span class="badge bg-primary fs-5">{{ competition.points }} نقطة</span>
+                    {% if competition.end_date >= now %}
+                        <span class="badge bg-success fs-5">مسابقة نشطة</span>
+                    {% else %}
+                        <span class="badge bg-secondary fs-5">مسابقة منتهية</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-4">
+                    <h5>وصف المسابقة</h5>
+                    <p>{{ competition.description }}</p>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">تاريخ البدء</h6>
+                                <p class="card-text">{{ competition.start_date.strftime('%d %b %Y, %H:%M') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">تاريخ الانتهاء</h6>
+                                <p class="card-text">{{ competition.end_date.strftime('%d %b %Y, %H:%M') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if competition.end_date >= now %}
+                    <!-- Progress bar showing time remaining -->
+                    {% set now = now or datetime.utcnow() %}
+                    {% set total_duration = (competition.end_date - competition.start_date).total_seconds() %}
+                    {% set elapsed = (now - competition.start_date).total_seconds() %}
+                    {% set percent = (elapsed / total_duration * 100)|int %}
+                    {% if percent < 0 %}{% set percent = 0 %}{% endif %}
+                    {% if percent > 100 %}{% set percent = 100 %}{% endif %}
+                    
+                    <div class="mb-4">
+                        <h5>التقدم</h5>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ percent }}%" aria-valuenow="{{ percent }}" aria-valuemin="0" aria-valuemax="100">{{ percent }}%</div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <small>البداية</small>
+                            <small>النهاية</small>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        {% if current_user.is_authenticated %}
+                            {% if participation %}
+                                <button class="btn btn-success btn-lg" disabled>أنت مشارك بالفعل</button>
+                            {% else %}
+                                <form method="POST" action="{{ url_for('competition_details', competition_id=competition.id) }}">
+                                    {{ form.hidden_tag() }}
+                                    {{ form.submit(class="btn btn-primary btn-lg") }}
+                                </form>
+                            {% endif %}
+                        {% else %}
+                            <a href="{{ url_for('login', next=url_for('competition_details', competition_id=competition.id)) }}" class="btn btn-primary btn-lg">سجل دخول للمشاركة</a>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-secondary">
+                        لقد انتهت هذه المسابقة في {{ competition.end_date.strftime('%d %b %Y') }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">المتصدرون</h5>
+            </div>
+            <div class="card-body">
+                {% if top_participants %}
+                    <div class="list-group">
+                        {% for participant in top_participants %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-secondary rounded-circle me-2">{{ loop.index }}</span>
+                                {{ participant.participant.username }}
+                            </div>
+                            <span class="badge bg-primary rounded-pill">{{ participant.score }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        لا يوجد مشاركين بعد.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">معلومات إضافية</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        النقاط المتاحة
+                        <span class="badge bg-primary rounded-pill">{{ competition.points }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        عدد المشاركين
+                        <span class="badge bg-primary rounded-pill">{{ competition.participations.count() }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        الحالة
+                        {% if competition.is_active and competition.end_date >= now %}
+                            <span class="badge bg-success">نشطة</span>
+                        {% else %}
+                            <span class="badge bg-secondary">منتهية</span>
+                        {% endif %}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

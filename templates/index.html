@@ -1,0 +1,178 @@
+{% extends "layout.html" %}
+
+{% block title %}مسابقاتي - منصة المسابقات والجوائز{% endblock %}
+
+{% block content %}
+<section class="hero bg-light rounded-3 p-4 mb-5">
+    <div class="row align-items-center">
+        <div class="col-lg-6">
+            <h1 class="display-4 fw-bold mb-3">تحدى نفسك واربح الجوائز!</h1>
+            <p class="lead mb-4">انضم الآن إلى مسابقاتي، المنصة الأولى للمسابقات والتحديات. شارك، اربح النقاط، واستبدلها بجوائز قيمة.</p>
+            {% if not current_user.is_authenticated %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4 me-md-2">سجل الآن</a>
+                <a href="{{ url_for('competitions') }}" class="btn btn-outline-secondary btn-lg px-4">استكشف المسابقات</a>
+            </div>
+            {% else %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                <a href="{{ url_for('competitions') }}" class="btn btn-primary btn-lg px-4 me-md-2">المسابقات النشطة</a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-lg px-4">لوحة التحكم</a>
+            </div>
+            {% endif %}
+        </div>
+        <div class="col-lg-6 d-none d-lg-block">
+            <div class="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="300">
+                    <circle cx="250" cy="250" r="200" fill="#2563EB" opacity="0.1"/>
+                    <path d="M250,100 L280,190 L370,190 L298,250 L325,340 L250,290 L175,340 L202,250 L130,190 L220,190 Z" fill="#FCD34D" stroke="#F97316" stroke-width="5"/>
+                    <circle cx="250" cy="250" r="50" fill="#F97316" opacity="0.5"/>
+                    <text x="250" y="265" font-family="Poppins" font-size="24" fill="#1F2937" text-anchor="middle">مسابقاتي</text>
+                </svg>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>أحدث المسابقات</h2>
+        <a href="{{ url_for('competitions') }}" class="btn btn-outline-primary">عرض الكل</a>
+    </div>
+    <div class="row">
+        {% if competitions %}
+            {% for competition in competitions %}
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card h-100 card-competition shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ competition.title }}</h5>
+                        <p class="card-text text-muted">{{ competition.description|truncate(100) }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-primary">{{ competition.points }} نقطة</span>
+                            <small class="text-muted">تنتهي في {{ competition.end_date.strftime('%d/%m/%Y') }}</small>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <a href="{{ url_for('competition_details', competition_id=competition.id) }}" class="btn btn-sm btn-outline-primary w-100">التفاصيل والمشاركة</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    لا توجد مسابقات نشطة حالياً. يرجى التحقق مرة أخرى لاحقاً.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>الجوائز المميزة</h2>
+        <a href="{{ url_for('rewards') }}" class="btn btn-outline-secondary">عرض الكل</a>
+    </div>
+    <div class="row">
+        {% if rewards %}
+            {% for reward in rewards %}
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card h-100 card-reward shadow-sm reward-item">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ reward.name }}</h5>
+                        <p class="card-text text-muted">{{ reward.description|truncate(100) }}</p>
+                        <div class="text-center mt-3">
+                            <span class="points-badge fs-5">
+                                <i class="fas fa-star me-1"></i> {{ reward.points_required }} نقطة
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <a href="{{ url_for('rewards') }}#reward-{{ reward.id }}" class="btn btn-sm btn-outline-secondary w-100">عرض التفاصيل</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    لا توجد جوائز متاحة حالياً. يرجى التحقق مرة أخرى لاحقاً.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<section>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>المتصدرون</h2>
+        <a href="{{ url_for('leaderboard') }}" class="btn btn-outline-primary">لوحة المتصدرين الكاملة</a>
+    </div>
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    {% if top_users %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">#</th>
+                                        <th scope="col">المستخدم</th>
+                                        <th scope="col">النقاط</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in top_users %}
+                                    <tr>
+                                        <th scope="row">{{ loop.index }}</th>
+                                        <td>{{ user.username }}</td>
+                                        <td>{{ user.points }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            لا يوجد مستخدمين حالياً في قائمة المتصدرين.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">كيف تتصدر؟</h5>
+                    <ul class="mt-3">
+                        <li>شارك في أكبر عدد من المسابقات</li>
+                        <li>حقق أعلى الدرجات في كل مسابقة</li>
+                        <li>كن نشطاً بشكل مستمر على المنصة</li>
+                        <li>دعوة أصدقائك للانضمام للمنصة</li>
+                    </ul>
+                    {% if not current_user.is_authenticated %}
+                    <div class="mt-3">
+                        <a href="{{ url_for('register') }}" class="btn btn-light">سجل الآن وابدأ التحدي</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mt-5 p-4 bg-light rounded-3">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h2>اشترك في النشرة البريدية</h2>
+            <p>احصل على إشعارات بأحدث المسابقات والعروض الحصرية</p>
+        </div>
+        <div class="col-md-4">
+            <form class="d-flex">
+                <input type="email" class="form-control me-2" placeholder="البريد الإلكتروني">
+                <button type="submit" class="btn btn-primary">اشتراك</button>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

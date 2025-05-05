@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+
+{% block title %}لوحة تحكم المشرف - مسابقاتي{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>لوحة تحكم المشرف</h1>
+    <div>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+            <i class="fas fa-home me-1"></i> العودة للموقع
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card admin-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">المستخدمين</h6>
+                        <h2 class="mb-0" data-count="{{ total_users }}">{{ total_users }}</h2>
+                    </div>
+                    <div class="bg-light rounded-circle p-3">
+                        <i class="fas fa-users fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('admin_users') }}" class="text-decoration-none">عرض التفاصيل <i class="fas fa-arrow-left ms-1"></i></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card admin-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">المسابقات</h6>
+                        <h2 class="mb-0" data-count="{{ total_competitions }}">{{ total_competitions }}</h2>
+                    </div>
+                    <div class="bg-light rounded-circle p-3">
+                        <i class="fas fa-trophy fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('admin_competitions') }}" class="text-decoration-none">عرض التفاصيل <i class="fas fa-arrow-left ms-1"></i></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card admin-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">المسابقات النشطة</h6>
+                        <h2 class="mb-0" data-count="{{ active_competitions }}">{{ active_competitions }}</h2>
+                    </div>
+                    <div class="bg-light rounded-circle p-3">
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('admin_competitions') }}?filter=active" class="text-decoration-none">عرض التفاصيل <i class="fas fa-arrow-left ms-1"></i></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card admin-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">الجوائز</h6>
+                        <h2 class="mb-0" data-count="{{ total_rewards }}">{{ total_rewards }}</h2>
+                    </div>
+                    <div class="bg-light rounded-circle p-3">
+                        <i class="fas fa-gift fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('admin_rewards') }}" class="text-decoration-none">عرض التفاصيل <i class="fas fa-arrow-left ms-1"></i></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-7 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">آخر طلبات استبدال الجوائز</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_redemptions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th scope="col">المستخدم</th>
+                                    <th scope="col">الجائزة</th>
+                                    <th scope="col">النقاط</th>
+                                    <th scope="col">التاريخ</th>
+                                    <th scope="col">الحالة</th>
+                                    <th scope="col">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for redemption in recent_redemptions %}
+                                <tr>
+                                    <td>{{ redemption.user.username }}</td>
+                                    <td>{{ redemption.reward.name }}</td>
+                                    <td>{{ redemption.points_spent }}</td>
+                                    <td>{{ redemption.created_at.strftime('%d/%m/%Y') }}</td>
+                                    <td>
+                                        {% if redemption.status == 'pending' %}
+                                            <span class="badge bg-warning text-dark">قيد الانتظار</span>
+                                        {% elif redemption.status == 'completed' %}
+                                            <span class="badge bg-success">مكتمل</span>
+                                        {% elif redemption.status == 'cancelled' %}
+                                            <span class="badge bg-danger">ملغي</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('admin_update_redemption', redemption_id=redemption.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="p-3">
+                        <div class="alert alert-info mb-0">
+                            لا توجد طلبات استبدال حالياً.
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent text-end">
+                <a href="{{ url_for('admin_redemptions') }}" class="text-decoration-none">عرض الكل <i class="fas fa-arrow-left ms-1"></i></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-5 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">إحصائيات عامة</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>إجمالي المستخدمين</span>
+                        <span class="badge bg-primary rounded-pill">{{ total_users }}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>إجمالي المسابقات</span>
+                        <span class="badge bg-primary rounded-pill">{{ total_competitions }}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>المسابقات النشطة</span>
+                        <span class="badge bg-success rounded-pill">{{ active_competitions }}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>إجمالي الجوائز</span>
+                        <span class="badge bg-primary rounded-pill">{{ total_rewards }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-grid gap-2 mt-4">
+            <a href="{{ url_for('admin_new_competition') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> إضافة مسابقة جديدة
+            </a>
+            <a href="{{ url_for('admin_new_reward') }}" class="btn btn-secondary">
+                <i class="fas fa-plus me-1"></i> إضافة جائزة جديدة
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
