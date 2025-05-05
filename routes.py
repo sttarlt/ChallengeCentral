@@ -218,22 +218,26 @@ def admin_login():
     if current_user.is_authenticated and current_user.is_admin:
         return redirect(url_for('admin_dashboard'))
     
-    # إذا كان المستخدم مسجل دخول كمستخدم عادي ويريد تسجيل الدخول كمشرف
-    # سنقوم بتسجيل خروجه أولاً ثم السماح له بتسجيل الدخول كمشرف
+    # إذا كان المستخدم مسجل دخول كمستخدم عادي، نقوم بتسجيل خروجه أولاً
     if current_user.is_authenticated:
         logout_user()
         flash('تم تسجيل خروجك. يرجى تسجيل الدخول كمشرف', 'info')
     
     form = LoginForm()
     if form.validate_on_submit():
+        # البحث عن المستخدم بالبريد الإلكتروني
         user = User.query.filter_by(email=form.email.data).first()
+        
+        # التحقق من وجود المستخدم وكلمة المرور
         if user and user.check_password(form.password.data):
+            # التحقق من أن المستخدم هو مشرف
             if user.is_admin:
                 login_user(user)
                 flash('تم تسجيل الدخول كمشرف بنجاح', 'success')
                 return redirect(url_for('admin_dashboard'))
             else:
-                flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+                flash('ليس لديك صلاحيات كمشرف للوصول إلى لوحة التحكم', 'danger')
+                return redirect(url_for('index'))
         else:
             flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
     

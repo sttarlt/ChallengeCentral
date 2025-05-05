@@ -22,9 +22,14 @@ class User(UserMixin, db.Model):
     chat_rooms = db.relationship('ChatRoomMember', backref='user', lazy='dynamic')
 
     def set_password(self, password):
+        """تشفير كلمة المرور"""
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+        """التحقق من كلمة المرور"""
+        # التحقق من أن password_hash موجود قبل استخدام check_password_hash
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
     
     def add_points(self, points):
