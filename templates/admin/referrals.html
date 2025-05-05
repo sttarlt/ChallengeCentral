@@ -1,0 +1,233 @@
+{% extends "admin/dashboard.html" %}
+
+{% block title %}إدارة الإحالات - لوحة التحكم{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid">
+    <h2 class="mb-4">إدارة الإحالات ومراقبة النشاط المشبوه</h2>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bell me-2"></i> إشعارات النظام
+                        <span class="badge bg-danger">{{ notifications|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if notifications %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>العنوان</th>
+                                        <th>التفاصيل</th>
+                                        <th>النوع</th>
+                                        <th>التاريخ</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for notification in notifications %}
+                                    <tr>
+                                        <td>{{ notification.title }}</td>
+                                        <td>{{ notification.message|truncate(100) }}</td>
+                                        <td>
+                                            {% if notification.notification_type == 'suspicious_activity' %}
+                                                <span class="badge bg-warning">نشاط مشبوه</span>
+                                            {% elif notification.notification_type == 'ip_blocked' %}
+                                                <span class="badge bg-danger">حظر IP</span>
+                                            {% elif notification.notification_type == 'suspicious_rate' %}
+                                                <span class="badge bg-warning">معدل إحالات مشبوه</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ notification.notification_type }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ notification.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            <a href="{{ url_for('admin_mark_notification_read', notification_id=notification.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-check"></i> تعليم كمقروء
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            لا توجد إشعارات جديدة
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i> إحالات مشبوهة
+                        <span class="badge bg-danger">{{ suspicious_referrals|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if suspicious_referrals %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>المحيل</th>
+                                        <th>المستخدم الجديد</th>
+                                        <th>عنوان IP</th>
+                                        <th>التاريخ</th>
+                                        <th>الحالة</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for referral in suspicious_referrals %}
+                                    <tr class="bg-warning-subtle">
+                                        <td>{{ referral.id }}</td>
+                                        <td>{{ referral.referrer.username }}</td>
+                                        <td>{{ referral.referred.username }}</td>
+                                        <td>{{ referral.ip_address }}</td>
+                                        <td>{{ referral.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if referral.status == 'pending' %}
+                                                <span class="badge bg-warning">معلق</span>
+                                            {% elif referral.status == 'verified' %}
+                                                <span class="badge bg-success">تم التحقق</span>
+                                            {% elif referral.status == 'rejected' %}
+                                                <span class="badge bg-danger">مرفوض</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <a href="{{ url_for('admin_verify_referral', referral_id=referral.id) }}" class="btn btn-sm btn-success">
+                                                    <i class="fas fa-check"></i> تحقق
+                                                </a>
+                                                <a href="{{ url_for('admin_reject_referral', referral_id=referral.id, reason='نشاط مشبوه') }}" class="btn btn-sm btn-danger">
+                                                    <i class="fas fa-times"></i> رفض
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            لا توجد إحالات مشبوهة
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock me-2"></i> إحالات معلقة
+                        <span class="badge bg-danger">{{ pending_referrals|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if pending_referrals %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>المحيل</th>
+                                        <th>المستخدم الجديد</th>
+                                        <th>عنوان IP</th>
+                                        <th>التاريخ</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for referral in pending_referrals %}
+                                    <tr>
+                                        <td>{{ referral.id }}</td>
+                                        <td>{{ referral.referrer.username }}</td>
+                                        <td>{{ referral.referred.username }}</td>
+                                        <td>{{ referral.ip_address }}</td>
+                                        <td>{{ referral.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <a href="{{ url_for('admin_verify_referral', referral_id=referral.id) }}" class="btn btn-sm btn-success">
+                                                    <i class="fas fa-check"></i> تحقق
+                                                </a>
+                                                <a href="{{ url_for('admin_reject_referral', referral_id=referral.id) }}" class="btn btn-sm btn-danger">
+                                                    <i class="fas fa-times"></i> رفض
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            لا توجد إحالات معلقة
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-ban me-2"></i> عناوين IP المحظورة
+                        <span class="badge bg-warning">{{ blocked_ips|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if blocked_ips %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>عنوان IP</th>
+                                        <th>عدد الإحالات</th>
+                                        <th>أول ظهور</th>
+                                        <th>آخر ظهور</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for ip in blocked_ips %}
+                                    <tr>
+                                        <td>{{ ip.ip_address }}</td>
+                                        <td>{{ ip.referral_count }}</td>
+                                        <td>{{ ip.first_seen.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>{{ ip.last_seen.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            لا توجد عناوين IP محظورة
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -80,6 +80,11 @@ def register():
     referral_code = session.get('referral_code', None)
     referrer = None
     
+    # استرجاع معلومات الإحالة المخزنة في الجلسة
+    referral_ip = session.get('referral_ip', None)
+    referral_user_agent = session.get('referral_user_agent', None)
+    referral_suspicious = session.get('referral_suspicious', False)
+    
     if referral_code:
         # البحث عن المستخدم صاحب كود الإحالة
         referrer = User.query.filter_by(referral_code=referral_code).first()
@@ -100,35 +105,36 @@ def register():
             # إضافة علاقة الإحالة
             user.referred_by_id = referrer.id
             
-            # إنشاء سجل إحالة جديد
+            # إنشاء سجل إحالة جديد مع معلومات تتبع كاملة
             referral = Referral(
                 referrer_id=referrer.id,
                 referred_id=user.id,
-                status='active'
+                status='pending',  # تعليق حالة الإحالة حتى يتم التحقق
+                ip_address=referral_ip,
+                user_agent=referral_user_agent,
+                is_suspicious=referral_suspicious
             )
             
-            # إضافة مكافأة للمستخدم الجديد
-            welcome_bonus = config.REFERRAL_WELCOME_BONUS
-            user.add_points(welcome_bonus)
-            
-            # زيادة عدد الإحالات للمستخدم المُحيل
-            referrer.total_referrals += 1
-            
-            # إضافة مكافأة للمستخدم المُحيل
-            reward_per_friend = config.REFERRAL_REWARD_PER_FRIEND
-            points_added = referrer.add_referral_points(reward_per_friend)
-            
-            # التحقق من الوصول إلى معالم معينة (5 أو 10 إحالات)
-            milestones = config.REFERRAL_MILESTONE_REWARDS
-            for milestone, bonus in milestones.items():
-                if referrer.total_referrals % milestone == 0:  # إذا وصل لمضاعف الـ 5 أو الـ 10
-                    milestone_points = referrer.add_referral_points(bonus)
-                    break
-                    
             db.session.add(referral)
             
-            # مسح كود الإحالة من الجلسة
-            session.pop('referral_code', None)
+            # منح المكافأة الترحيبية للمستخدم الجديد (هذه تُمنح فوراً)
+            welcome_bonus = config.REFERRAL_WELCOME_BONUS
+            if welcome_bonus > 0:
+                user.add_points(welcome_bonus)
+                flash(f'تهانينا! لقد حصلت على {welcome_bonus} كربتو كمكافأة ترحيبية', 'success')
+            
+            # التحقق مما إذا كان يجب التحقق من الإحالة عبر المشاركة في مسابقة
+            if config.REFERRAL_REQUIRE_COMPETITION_PARTICIPATION:
+                # لا تتم إضافة النقاط للمُحيل حتى يتم التحقق
+                flash('لتفعيل مكافأة الإحالة، يجب عليك المشاركة في مسابقة واحدة على الأقل خلال الأيام القادمة', 'info')
+            else:
+                # إذا لم يكن التحقق مطلوبًا، نقوم بتفعيل الإحالة فوراً
+                referral_security.verify_referral(referral.id, "direct_registration")
+                
+            # مسح معلومات الإحالة من الجلسة
+            for key in ['referral_code', 'referral_ip', 'referral_user_agent', 'referral_suspicious']:
+                if key in session:
+                    session.pop(key, None)
             
         db.session.commit()
         flash('تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول', 'success')
@@ -143,6 +149,76 @@ def logout():
     logout_user()
     flash('تم تسجيل الخروج بنجاح', 'success')
     return redirect(url_for('index'))
+
+
+@app.route('/admin/referrals')
+@admin_required
+def admin_referrals():
+    """إدارة الإحالات ومراقبة النشاط المشبوه"""
+    # الحصول على الإحالات المشبوهة
+    suspicious_referrals = Referral.query.filter_by(is_suspicious=True).order_by(desc(Referral.created_at)).all()
+    
+    # الحصول على الإحالات المعلقة
+    pending_referrals = Referral.query.filter_by(status='pending').order_by(desc(Referral.created_at)).all()
+    
+    # الحصول على عناوين IP المحظورة
+    blocked_ips = ReferralIPLog.query.filter_by(is_blocked=True).order_by(desc(ReferralIPLog.last_seen)).all()
+    
+    # الحصول على الإشعارات غير المقروءة
+    unread_notifications = AdminNotification.query.filter_by(is_read=False).order_by(desc(AdminNotification.created_at)).all()
+    
+    # التحقق من الإحالات المعلقة التي قد تكون تجاوزت مدة التحقق
+    checked_count = referral_security.check_pending_verifications()
+    if checked_count > 0:
+        flash(f'تم فحص {checked_count} من الإحالات المعلقة التي تجاوزت مدة التحقق', 'info')
+    
+    return render_template(
+        'admin/referrals.html',
+        suspicious_referrals=suspicious_referrals,
+        pending_referrals=pending_referrals,
+        blocked_ips=blocked_ips,
+        notifications=unread_notifications
+    )
+
+
+@app.route('/admin/referrals/verify/<int:referral_id>')
+@admin_required
+def admin_verify_referral(referral_id):
+    """التحقق اليدوي من إحالة بواسطة المشرف"""
+    success = referral_security.verify_referral(referral_id, "admin_verification")
+    
+    if success:
+        flash('تم التحقق من الإحالة وإضافة المكافأة بنجاح', 'success')
+    else:
+        flash('حدث خطأ أثناء محاولة التحقق من الإحالة', 'danger')
+    
+    return redirect(url_for('admin_referrals'))
+
+
+@app.route('/admin/referrals/reject/<int:referral_id>')
+@admin_required
+def admin_reject_referral(referral_id):
+    """رفض إحالة بواسطة المشرف"""
+    reason = request.args.get('reason', 'رفض يدوي بواسطة المشرف')
+    success = referral_security.reject_referral(referral_id, reason)
+    
+    if success:
+        flash('تم رفض الإحالة بنجاح', 'success')
+    else:
+        flash('حدث خطأ أثناء محاولة رفض الإحالة', 'danger')
+    
+    return redirect(url_for('admin_referrals'))
+
+
+@app.route('/admin/referrals/notification/<int:notification_id>/mark-read')
+@admin_required
+def admin_mark_notification_read(notification_id):
+    """تعليم إشعار كمقروء"""
+    notification = AdminNotification.query.get_or_404(notification_id)
+    notification.is_read = True
+    db.session.commit()
+    
+    return redirect(url_for('admin_referrals'))
 
 
 @app.route('/dashboard')
@@ -215,6 +291,7 @@ def competition_details(competition_id):
         form = ParticipationForm()
         if current_user.is_authenticated and form.validate_on_submit():
             if not participation:
+                # إنشاء سجل المشاركة
                 participation = Participation(
                     user_id=current_user.id,
                     competition_id=competition.id
@@ -222,6 +299,27 @@ def competition_details(competition_id):
                 db.session.add(participation)
                 db.session.commit()
                 flash('تمت المشاركة في المسابقة بنجاح', 'success')
+                
+                # التحقق من وجود إحالة معلقة للمستخدم
+                if config.REFERRAL_REQUIRE_COMPETITION_PARTICIPATION:
+                    # البحث عن إحالة معلقة حيث المستخدم هو المُحال
+                    pending_referral = Referral.query.filter_by(
+                        referred_id=current_user.id,
+                        status='pending',
+                        is_verified=False
+                    ).first()
+                    
+                    if pending_referral:
+                        # تحقق من الإحالة باستخدام المشاركة في المسابقة
+                        successful = referral_security.verify_referral(
+                            pending_referral.id, 
+                            "competition_participation"
+                        )
+                        
+                        if successful:
+                            # إشعار المستخدم بتفعيل الإحالة
+                            flash('تم تفعيل رابط الإحالة الخاص بك وتلقى صديقك المكافأة!', 'success')
+                
                 return redirect(url_for('competition_details', competition_id=competition.id))
             else:
                 flash('أنت مشارك بالفعل في هذه المسابقة', 'info')
@@ -876,7 +974,7 @@ def send_direct_message():
 # روابط تحدي الصديق (نظام الإحالة)
 @app.route('/invite')
 def invite():
-    """معالجة رابط الدعوة وتخزين كود الإحالة في الجلسة"""
+    """معالجة رابط الدعوة وتخزين كود الإحالة في الجلسة مع إجراءات الأمان"""
     referral_code = request.args.get('ref')
     
     if referral_code:
@@ -884,8 +982,35 @@ def invite():
         referrer = User.query.filter_by(referral_code=referral_code).first()
         
         if referrer:
+            # تتبع عنوان IP لمنع التلاعب
+            ip_address = request.remote_addr
+            user_agent = request.user_agent.string if request.user_agent else None
+            
+            # فحص عنوان IP للتحقق من أمان الإحالة
+            ip_safe, ip_status = referral_security.track_referral_ip(ip_address)
+            
+            if not ip_safe:
+                # توجيه رسالة ملائمة حسب سبب رفض الإحالة
+                if ip_status == "ip_blocked":
+                    flash('معذرة، تم حظر طلبك بسبب نشاط مشبوه. إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع الدعم.', 'danger')
+                elif ip_status == "max_referrals_per_ip":
+                    flash('تم تجاوز الحد المسموح من الإحالات من جهازك خلال 24 ساعة. يرجى المحاولة لاحقًا.', 'warning')
+                
+                return redirect(url_for('index'))
+            
+            # فحص نشاط المستخدم المرجع (المحيل) للكشف عن أنماط مشبوهة
+            suspicious, reason = referral_security.detect_suspicious_activity(referrer.id)
+            
+            if suspicious:
+                # تسجيل النشاط المشبوه ولكن السماح بمتابعة الإحالة مع وضع علامة عليها
+                app.logger.warning(f"Suspicious referral activity detected: User {referrer.username}, reason: {reason}")
+                # تخزين معلومات للتحقق لاحقًا
+                session['referral_suspicious'] = True
+            
             # تخزين كود الإحالة في الجلسة لاستخدامه لاحقاً عند التسجيل
             session['referral_code'] = referral_code
+            session['referral_ip'] = ip_address
+            session['referral_user_agent'] = user_agent
             
             # إذا كان المستخدم مسجل الدخول بالفعل، فلا يمكن استخدام الإحالة
             if current_user.is_authenticated:
