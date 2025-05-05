@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Show insufficient points modal
                 const insufficientModal = new bootstrap.Modal(document.getElementById('insufficient-points-modal'));
                 const modalBody = document.querySelector('#insufficient-points-modal .modal-body');
-                modalBody.textContent = `عذراً، لا تملك نقاط كافية لاستبدال ${rewardName}. أنت تحتاج ${pointsCost} نقطة وتملك حالياً ${userPoints} نقطة فقط.`;
+                modalBody.textContent = `عذراً، لا تملك كربتو كافي لاستبدال ${rewardName}. أنت تحتاج ${pointsCost} كربتو وتملك حالياً ${userPoints} كربتو فقط.`;
                 
                 insufficientModal.show();
             } else {

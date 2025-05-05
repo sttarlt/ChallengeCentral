@@ -17,8 +17,8 @@
             <select class="form-select" id="competition-filter" style="max-width: 200px;">
                 <option value="all" selected>جميع المسابقات</option>
                 <option value="active">المسابقات النشطة</option>
-                <option value="points-asc">النقاط (الأقل إلى الأعلى)</option>
-                <option value="points-desc">النقاط (الأعلى إلى الأقل)</option>
+                <option value="points-asc">الكربتو (الأقل إلى الأعلى)</option>
+                <option value="points-desc">الكربتو (الأعلى إلى الأقل)</option>
                 <option value="date-asc">التاريخ (الأقرب أولاً)</option>
             </select>
         </div>
@@ -34,7 +34,7 @@
             <div class="col-md-6 col-lg-4 mb-4">
                 <div class="card h-100 card-competition shadow-sm" data-points="{{ competition.points }}">
                     <div class="card-header d-flex justify-content-between align-items-center bg-light">
-                        <span class="badge bg-primary">{{ competition.points }} نقطة</span>
+                        <span class="badge bg-primary">{{ competition.points }} كربتو</span>
                         <small class="text-muted">تنتهي في {{ competition.end_date.strftime('%d/%m/%Y') }}</small>
                     </div>
                     <div class="card-body">
@@ -84,7 +84,7 @@
             <div class="col-md-6 col-lg-4 mb-4">
                 <div class="card h-100 shadow-sm">
                     <div class="card-header d-flex justify-content-between align-items-center bg-light">
-                        <span class="badge bg-secondary">{{ competition.points }} نقطة</span>
+                        <span class="badge bg-secondary">{{ competition.points }} كربتو</span>
                         <small class="text-muted">انتهت في {{ competition.end_date.strftime('%d/%m/%Y') }}</small>
                     </div>
                     <div class="card-body">
