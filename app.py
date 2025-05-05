@@ -1,6 +1,8 @@
 import os
 import logging
 from datetime import timedelta
+import importlib.util
+import secrets
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -18,9 +20,26 @@ class Base(DeclarativeBase):
 
 
 db = SQLAlchemy(model_class=Base)
+
 # create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "dev_secret_key")
+
+# محاولة استيراد ملف الإعدادات السرية إذا كان موجوداً
+config_secrets_spec = importlib.util.find_spec("config_secrets")
+if config_secrets_spec is not None:
+    import config_secrets
+    app.logger.info("تم استيراد ملف الإعدادات السرية")
+    # استخدام المفتاح السري من ملف الإعدادات إذا كان موجوداً
+    app.secret_key = getattr(config_secrets, "SECRET_KEY", None)
+else:
+    app.logger.warning("ملف الإعدادات السرية غير موجود، يتم استخدام الإعدادات الافتراضية")
+
+# إذا لم يتم تعيين المفتاح السري من ملف الإعدادات، استخدم المتغير البيئي أو قم بإنشاء واحد تلقائيًا
+if not app.secret_key:
+    app.secret_key = os.environ.get("SESSION_SECRET", secrets.token_hex(32))
+    if not os.environ.get("SESSION_SECRET"):
+        app.logger.warning("تم إنشاء مفتاح سري عشوائي. يُرجى تعيين SESSION_SECRET أو SECRET_KEY في الإعدادات")
+
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # needed for url_for to generate with https
 
 # تكوين ملفات تعريف ارتباط الجلسة
@@ -31,8 +50,13 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(days=1)  # تعيين مدة الجلسة
 )
 
-# configure the database, relative to the app instance folder
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///musabaqati.db")
+# تكوين قاعدة البيانات
+# استخدام عنوان قاعدة البيانات من ملف الإعدادات السرية إذا كان موجوداً
+if config_secrets_spec is not None and hasattr(config_secrets, "DATABASE_URI"):
+    app.config["SQLALCHEMY_DATABASE_URI"] = config_secrets.DATABASE_URI
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///musabaqati.db")
+
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
