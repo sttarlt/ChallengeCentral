@@ -1,0 +1,199 @@
+{% extends "admin/dashboard.html" %}
+
+{% block title %}سجل معاملات الكربتو - لوحة التحكم{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid">
+    <h2 class="mb-4">سجل معاملات الكربتو</h2>
+    
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-search me-2"></i> بحث في المعاملات</h5>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('admin_transactions') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="user_id" class="form-label">معرف المستخدم</label>
+                    <input type="number" class="form-control" id="user_id" name="user_id" value="{{ request.args.get('user_id', '') }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="transaction_type" class="form-label">نوع المعاملة</label>
+                    <select class="form-select" id="transaction_type" name="transaction_type">
+                        <option value="">الكل</option>
+                        <option value="referral_reward" {% if request.args.get('transaction_type') == 'referral_reward' %}selected{% endif %}>مكافأة إحالة</option>
+                        <option value="milestone_reward" {% if request.args.get('transaction_type') == 'milestone_reward' %}selected{% endif %}>مكافأة مرحلة</option>
+                        <option value="welcome_bonus" {% if request.args.get('transaction_type') == 'welcome_bonus' %}selected{% endif %}>مكافأة ترحيبية</option>
+                        <option value="reward_redemption" {% if request.args.get('transaction_type') == 'reward_redemption' %}selected{% endif %}>استبدال جائزة</option>
+                        <option value="referral_rejection" {% if request.args.get('transaction_type') == 'referral_rejection' %}selected{% endif %}>رفض إحالة</option>
+                        <option value="admin_adjustment" {% if request.args.get('transaction_type') == 'admin_adjustment' %}selected{% endif %}>تعديل إداري</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="start_date" class="form-label">من تاريخ</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="end_date" class="form-label">إلى تاريخ</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+                </div>
+                <div class="col-12 text-center mt-4">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> بحث</button>
+                    <a href="{{ url_for('admin_transactions') }}" class="btn btn-secondary"><i class="fas fa-redo"></i> إعادة تعيين</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i> سجل المعاملات</h5>
+                <a href="{{ url_for('admin_add_points') }}" class="btn btn-light btn-sm">
+                    <i class="fas fa-plus"></i> إضافة/خصم كربتو
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>رقم</th>
+                                <th>المستخدم</th>
+                                <th>العملية</th>
+                                <th>المقدار</th>
+                                <th>الرصيد بعد</th>
+                                <th>معرف مرتبط</th>
+                                <th>الوصف</th>
+                                <th>منشئ العملية</th>
+                                <th>IP</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr>
+                                <td>{{ transaction.id }}</td>
+                                <td>
+                                    <a href="{{ url_for('admin_user_transactions', user_id=transaction.user_id) }}">
+                                        {{ transaction.user.username }}
+                                    </a>
+                                </td>
+                                <td>
+                                    {% if transaction.transaction_type == 'referral_reward' %}
+                                        <span class="badge bg-success">مكافأة إحالة</span>
+                                    {% elif transaction.transaction_type == 'milestone_reward' %}
+                                        <span class="badge bg-primary">مكافأة مرحلة</span>
+                                    {% elif transaction.transaction_type == 'welcome_bonus' %}
+                                        <span class="badge bg-info">مكافأة ترحيبية</span>
+                                    {% elif transaction.transaction_type == 'reward_redemption' %}
+                                        <span class="badge bg-warning">استبدال جائزة</span>
+                                    {% elif transaction.transaction_type == 'referral_rejection' %}
+                                        <span class="badge bg-danger">رفض إحالة</span>
+                                    {% elif transaction.transaction_type == 'admin_adjustment' %}
+                                        <span class="badge bg-dark">تعديل إداري</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ transaction.transaction_type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="{{ 'text-success' if transaction.amount > 0 else 'text-danger' }}">
+                                    {{ "+" if transaction.amount > 0 else "" }}{{ transaction.amount }}
+                                </td>
+                                <td>{{ transaction.balance_after }}</td>
+                                <td>
+                                    {% if transaction.related_id %}
+                                        {% if transaction.transaction_type == 'referral_reward' or transaction.transaction_type == 'referral_rejection' %}
+                                            <a href="{{ url_for('admin_referrals') }}">{{ transaction.related_id }}</a>
+                                        {% elif transaction.transaction_type == 'reward_redemption' %}
+                                            <a href="{{ url_for('admin_rewards') }}">{{ transaction.related_id }}</a>
+                                        {% else %}
+                                            {{ transaction.related_id }}
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>{{ transaction.description }}</td>
+                                <td>
+                                    {% if transaction.created_by %}
+                                        {{ transaction.created_by.username }}
+                                        {% if transaction.created_by.is_admin %}
+                                            <span class="badge bg-danger">مشرف</span>
+                                        {% endif %}
+                                    {% else %}
+                                        النظام
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ transaction.ip_address or '-' }}</small></td>
+                                <td><small>{{ transaction.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if pagination and pagination.pages > 1 %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_transactions', page=pagination.prev_num, **request.args) }}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for page in pagination.iter_pages() %}
+                            {% if page %}
+                                {% if page != pagination.page %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('admin_transactions', page=page, **request.args) }}">{{ page }}</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item active">
+                                        <a class="page-link" href="#">{{ page }}</a>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#">...</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_transactions', page=pagination.next_num, **request.args) }}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                
+            {% else %}
+                <div class="alert alert-info">
+                    لا توجد معاملات للعرض. قم بتعديل معايير البحث أو <a href="{{ url_for('admin_transactions') }}">عرض كل المعاملات</a>.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

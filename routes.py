@@ -10,7 +10,7 @@ from forms import (
     LoginForm, RegistrationForm, CompetitionForm, RewardForm,
     ParticipationForm, RedeemRewardForm, RedemptionStatusForm,
     CreateChatRoomForm, SendMessageForm, DirectMessageForm,
-    PointsPackageForm
+    PointsPackageForm, AdminPointsForm
 )
 from datetime import datetime
 

@@ -90,3 +90,12 @@ class PointsPackageForm(FlaskForm):
     is_active = BooleanField('نشط')
     display_order = IntegerField('ترتيب العرض', validators=[DataRequired()], default=0)
     submit = SubmitField('حفظ الباقة')
+
+
+class AdminPointsForm(FlaskForm):
+    """نموذج تعديل نقاط المستخدم من قبل المشرف"""
+    username = StringField('اسم المستخدم', validators=[DataRequired()])
+    points = IntegerField('عدد النقاط', validators=[DataRequired()])
+    description = StringField('السبب', validators=[DataRequired(), Length(max=255)])
+    notify_user = BooleanField('إشعار المستخدم')
+    submit = SubmitField('تعديل الرصيد')

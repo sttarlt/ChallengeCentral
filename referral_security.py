@@ -113,17 +113,23 @@ def detect_suspicious_activity(user_id):
     return False, None
 
 
-def verify_referral(referral_id, verification_method=None):
+def verify_referral(referral_id, verification_method=None, request=None):
     """
     التحقق من صحة إحالة والموافقة عليها
     يمكن أن تكون بسبب تفعيل البريد أو المشاركة في مسابقة
     
+    Args:
+        referral_id: معرّف الإحالة
+        verification_method: طريقة التحقق (مثلاً: admin_verification, competition_participation)
+        request: كائن Flask Request للحصول على معلومات IP والمتصفح
+    
     عودة:
-    - True إذا تم التحقق بنجاح
-    - False إذا فشل التحقق
+        - True إذا تم التحقق بنجاح
+        - False إذا فشل التحقق
     """
     referral = Referral.query.get(referral_id)
     if not referral:
+        app.logger.warning(f"Referral {referral_id} not found")
         return False
     
     # تعيين الإحالة كتم التحقق منها
@@ -131,9 +137,6 @@ def verify_referral(referral_id, verification_method=None):
     referral.verified_at = datetime.utcnow()
     referral.verification_method = verification_method
     referral.status = "verified"
-    
-    if verification_method:
-        referral.verification_method = verification_method
     
     # إذا لم يتم دفع المكافأة بعد، ادفعها الآن
     if not referral.reward_paid:
@@ -152,8 +155,16 @@ def verify_referral(referral_id, verification_method=None):
                 # زيادة عدد الإحالات الناجحة
                 referrer.total_referrals += 1
                 
-                # إضافة مكافأة الإحالة الأساسية
-                referrer.add_points(reward_amount)
+                # إضافة مكافأة الإحالة الأساسية باستخدام نظام التسجيل المحسّن
+                referrer.add_points(
+                    points=reward_amount,
+                    transaction_type='referral_reward',
+                    related_id=referral_id,
+                    description=f'مكافأة إحالة المستخدم {referred.username}',
+                    request=request
+                )
+                
+                # تحديث عدادات الإحالة
                 referrer.monthly_referral_points += reward_amount
                 referrer.total_referral_points += reward_amount
                 
@@ -167,7 +178,16 @@ def verify_referral(referral_id, verification_method=None):
                         # التحقق مرة أخرى من إمكانية تلقي المكافأة الإضافية
                         can_add_bonus, _ = referrer.can_receive_referral_reward(bonus)
                         if can_add_bonus:
-                            referrer.add_points(bonus)
+                            # إضافة مكافأة المرحلة باستخدام نظام التسجيل المحسّن
+                            referrer.add_points(
+                                points=bonus,
+                                transaction_type='milestone_reward',
+                                related_id=referral_id,
+                                description=f'مكافأة إضافية - {milestone} إحالات',
+                                request=request
+                            )
+                            
+                            # تحديث عدادات الإحالة
                             referrer.monthly_referral_points += bonus
                             referrer.total_referral_points += bonus
                             
@@ -176,7 +196,14 @@ def verify_referral(referral_id, verification_method=None):
                 
                 # منح المستخدم الجديد المكافأة الترحيبية
                 if config.REFERRAL_WELCOME_BONUS > 0:
-                    referred.add_points(config.REFERRAL_WELCOME_BONUS)
+                    # استخدام نظام التسجيل المحسّن للمستخدم الجديد
+                    referred.add_points(
+                        points=config.REFERRAL_WELCOME_BONUS,
+                        transaction_type='welcome_bonus',
+                        related_id=referral_id,
+                        description='مكافأة ترحيبية للتسجيل عبر دعوة صديق',
+                        request=request
+                    )
                     app.logger.info(f"New user {referred.username} received welcome bonus: {config.REFERRAL_WELCOME_BONUS} points")
             
             else:
@@ -188,12 +215,22 @@ def verify_referral(referral_id, verification_method=None):
     return True
 
 
-def reject_referral(referral_id, reason):
+def reject_referral(referral_id, reason, request=None):
     """
     رفض إحالة وتسجيل سبب الرفض
+    
+    Args:
+        referral_id: معرّف الإحالة
+        reason: سبب الرفض
+        request: كائن Flask Request للحصول على معلومات IP والمتصفح
+    
+    عودة:
+        - True إذا تم الرفض بنجاح
+        - False إذا فشلت العملية
     """
     referral = Referral.query.get(referral_id)
     if not referral:
+        app.logger.warning(f"Referral {referral_id} not found")
         return False
     
     referral.status = "rejected"
@@ -203,12 +240,24 @@ def reject_referral(referral_id, reason):
     if referral.reward_paid and referral.reward_amount > 0:
         referrer = User.query.get(referral.referrer_id)
         if referrer and referrer.points >= referral.reward_amount:
-            referrer.points -= referral.reward_amount
+            # تسجيل عملية استرجاع النقاط في سجل المعاملات
+            # لاحظ أننا نستخدم قيمة سالبة للـ points لأننا نستخدم use_points التي تأخذ قيمة موجبة
+            referrer.use_points(
+                points=referral.reward_amount,
+                transaction_type='referral_rejection',
+                related_id=referral_id,
+                description=f'استرجاع مكافأة إحالة - السبب: {reason}',
+                request=request
+            )
+            
+            # تحديث عدادات الإحالة
             referrer.monthly_referral_points -= referral.reward_amount
             referrer.total_referral_points -= referral.reward_amount
             referrer.total_referrals -= 1
             
             referral.reward_paid = False
+            
+            app.logger.info(f"Referral {referral_id} rejected and {referral.reward_amount} points reclaimed from user {referrer.username}")
     
     db.session.commit()
     return True
@@ -244,3 +293,30 @@ def check_pending_verifications():
     
     db.session.commit()
     return len(pending_referrals)
+
+
+def is_valid_session(user_id):
+    """
+    التحقق من صحة جلسة المستخدم وأهليته لتنفيذ عمليات على النقاط
+    هذه الدالة تساعد في حماية عمليات النقاط (كربتو)
+    
+    Args:
+        user_id: معرّف المستخدم المطلوب التحقق منه
+    
+    عودة:
+        - True إذا كانت الجلسة صالحة والمستخدم مؤهل
+        - False إذا كانت هناك مشكلة في الجلسة أو المستخدم
+    """
+    from flask_login import current_user
+    
+    # التحقق من أن المستخدم مسجل دخوله
+    if not current_user.is_authenticated:
+        app.logger.warning("Attempt to modify points without login")
+        return False
+    
+    # التحقق من أن المستخدم المطلوب هو نفسه المسجل الدخول أو مشرف
+    if current_user.id != user_id and not current_user.is_admin:
+        app.logger.warning(f"User {current_user.id} attempted to modify points for user {user_id}")
+        return False
+    
+    return True
