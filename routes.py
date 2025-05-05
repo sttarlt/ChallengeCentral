@@ -1508,7 +1508,9 @@ def friend_challenge():
         db.session.commit()
     
     # الحصول على رابط الإحالة الكامل
-    referral_url = request.host_url.rstrip('/') + current_user.get_referral_url()
+    # تأكد من أن عنوان الموقع ينتهي بشرطة (/) وألا يتكرر في الرابط النهائي
+    host_url = request.host_url.rstrip('/') + '/'
+    referral_url = host_url + current_user.get_referral_url().lstrip('/')
     
     # عدد الأصدقاء الذين تمت إحالتهم
     referred_friends_count = Referral.query.filter_by(referrer_id=current_user.id).count()

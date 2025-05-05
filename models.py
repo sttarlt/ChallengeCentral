@@ -223,11 +223,15 @@ class User(UserMixin, db.Model):
         return self.referral_code
     
     def get_referral_url(self):
-        """الحصول على رابط الإحالة الكامل"""
+        """الحصول على رابط الإحالة
+        
+        ملاحظة: هذه الدالة تقوم بإرجاع المسار النسبي فقط دون عنوان الموقع
+        استخدم _external=True لرابط خارجي كامل إذا كان مطلوباً
+        """
         from flask import url_for
         if not self.referral_code:
             self.generate_referral_code()
-        return url_for('invite', ref=self.referral_code, _external=True)
+        return url_for('invite', ref=self.referral_code, _external=False)
     
     def can_receive_referral_reward(self, reward_amount):
         """التحقق مما إذا كان المستخدم يمكنه استلام مكافأة إحالة"""
