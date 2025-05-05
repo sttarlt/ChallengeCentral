@@ -214,12 +214,15 @@ def leaderboard():
 # Admin routes
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    # إذا كان المستخدم مسجل دخول بالفعل كمشرف، يتم توجيهه إلى لوحة التحكم مباشرة
     if current_user.is_authenticated and current_user.is_admin:
         return redirect(url_for('admin_dashboard'))
     
-    if current_user.is_authenticated and not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
+    # إذا كان المستخدم مسجل دخول كمستخدم عادي ويريد تسجيل الدخول كمشرف
+    # سنقوم بتسجيل خروجه أولاً ثم السماح له بتسجيل الدخول كمشرف
+    if current_user.is_authenticated:
+        logout_user()
+        flash('تم تسجيل خروجك. يرجى تسجيل الدخول كمشرف', 'info')
     
     form = LoginForm()
     if form.validate_on_submit():
