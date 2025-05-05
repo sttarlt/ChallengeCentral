@@ -261,8 +261,16 @@ class Referral(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     referrer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     referred_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    status = db.Column(db.String(20), default='active')  # active, expired, cancelled
+    status = db.Column(db.String(20), default='pending')  # pending, verified, rejected
     reward_paid = db.Column(db.Boolean, default=False)
+    reward_amount = db.Column(db.Integer, default=0)  # المبلغ الفعلي المدفوع
+    ip_address = db.Column(db.String(45), nullable=True)  # يدعم IPv6
+    user_agent = db.Column(db.String(255), nullable=True)  # معلومات المتصفح
+    verification_method = db.Column(db.String(50), nullable=True)  # كيف تم التحقق (بريد إلكتروني، مشاركة في مسابقة، إلخ)
+    rejection_reason = db.Column(db.String(255), nullable=True)  # سبب رفض الإحالة إذا تم رفضها
+    is_suspicious = db.Column(db.Boolean, default=False)  # علامة للنشاط المشبوه
+    is_verified = db.Column(db.Boolean, default=False)  # تم التحقق من المستخدم
+    verified_at = db.Column(db.DateTime, nullable=True)  # وقت التحقق
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # علاقات قاعدة البيانات
@@ -270,4 +278,36 @@ class Referral(db.Model):
     referred = db.relationship('User', foreign_keys=[referred_id], backref='referral_source')
     
     def __repr__(self):
-        return f'<Referral {self.referrer_id} -> {self.referred_id}>'
+        return f'<Referral {self.referrer_id} -> {self.referred_id} ({self.status})>'
+
+
+class ReferralIPLog(db.Model):
+    """سجل عناوين IP للإحالات لمنع التلاعب"""
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), nullable=False)  # يدعم IPv6
+    referral_count = db.Column(db.Integer, default=1)  # عدد الإحالات من نفس الـ IP
+    first_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    is_blocked = db.Column(db.Boolean, default=False)  # حظر عناوين IP المشبوهة
+    
+    def __repr__(self):
+        return f'<ReferralIPLog {self.ip_address} count={self.referral_count}>'
+
+
+class AdminNotification(db.Model):
+    """إشعارات للمشرفين عن النشاط المشبوه"""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    notification_type = db.Column(db.String(50), default='suspicious_activity')  # نوع الإشعار
+    related_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # المستخدم المتعلق بالإشعار
+    related_referral_id = db.Column(db.Integer, db.ForeignKey('referral.id'), nullable=True)  # الإحالة المتعلقة بالإشعار
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # علاقات قاعدة البيانات
+    related_user = db.relationship('User', foreign_keys=[related_user_id])
+    related_referral = db.relationship('Referral', foreign_keys=[related_referral_id])
+    
+    def __repr__(self):
+        return f'<AdminNotification {self.id}: {self.title[:20]}... ({self.notification_type})>'

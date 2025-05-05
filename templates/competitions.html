@@ -42,7 +42,7 @@
                         <p class="card-text">{{ competition.description|truncate(150) }}</p>
                         
                         <!-- Progress bar showing time remaining -->
-                        {% set now = now or datetime.utcnow() %}
+                        {% set now = now or utcnow %}
                         {% set total_duration = (competition.end_date - competition.start_date).total_seconds() %}
                         {% set elapsed = (now - competition.start_date).total_seconds() %}
                         {% set percent = (elapsed / total_duration * 100)|int %}

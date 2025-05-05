@@ -176,19 +176,22 @@ def dashboard():
 
 @app.route('/competitions')
 def competitions():
+    now = datetime.utcnow()
+    
     active_competitions = Competition.query.filter(
         Competition.is_active == True,
-        Competition.end_date >= datetime.utcnow()
+        Competition.end_date >= now
     ).order_by(Competition.start_date).all()
     
     past_competitions = Competition.query.filter(
-        Competition.end_date < datetime.utcnow()
+        Competition.end_date < now
     ).order_by(desc(Competition.end_date)).limit(5).all()
     
     return render_template(
         'competitions.html',
         active_competitions=active_competitions,
-        past_competitions=past_competitions
+        past_competitions=past_competitions,
+        utcnow=now
     )
 
 
