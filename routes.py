@@ -769,6 +769,7 @@ def admin_edit_points_package(package_id):
 
 @app.route('/admin/config', methods=['GET', 'POST'])
 @admin_required
+@limiter.limit("20 per minute")  # تقييد معدل الطلبات على إعدادات النظام
 def admin_config():
     """تعديل إعدادات النظام"""
     from models import SystemConfig
@@ -791,6 +792,21 @@ def admin_config():
             
             # تحديث المتغير في الذاكرة
             config.CONTACT_LINK = new_contact_link
+            
+            # تسجيل تغيير الإعدادات في سجل التدقيق
+            ip_address = request.remote_addr
+            if 'X-Forwarded-For' in request.headers:
+                ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+            
+            log_audit_event(
+                event_type='SETTINGS_CHANGE',
+                severity='WARNING',
+                details=f"تم تعديل رابط التواصل من {current_user.username} إلى: {new_contact_link}",
+                user_id=current_user.id,
+                username=current_user.username,
+                ip_address=ip_address,
+                notify_admin=True
+            )
             
             flash('تم تحديث إعدادات النظام بنجاح', 'success')
             return redirect(url_for('admin_config'))
@@ -919,6 +935,7 @@ def admin_user_transactions(user_id):
 
 @app.route('/admin/add-points', methods=['GET', 'POST'])
 @admin_required
+@limiter.limit("10 per minute")  # تقييد معدل الطلبات على عمليات تعديل النقاط
 def admin_add_points():
     """إضافة أو خصم كربتو لمستخدم من قبل المشرف"""
     from models import PointsTransaction
@@ -949,6 +966,22 @@ def admin_add_points():
             )
             
             if success:
+                # تسجيل عملية إضافة النقاط في سجل التدقيق
+                ip_address = request.remote_addr
+                if 'X-Forwarded-For' in request.headers:
+                    ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                
+                log_audit_event(
+                    event_type='POINTS_ADDITION',
+                    severity='WARNING',
+                    details=f"تم إضافة {points} كربتو لحساب {user.username} بواسطة المشرف {current_user.username}. السبب: {description}",
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=ip_address,
+                    notify_admin=True,
+                    related_user_id=user.id
+                )
+                
                 flash(f'تم إضافة {points} كربتو إلى حساب {user.username} بنجاح', 'success')
                 app.logger.info(f"Admin {current_user.username} added {points} points to user {user.username}")
             else:
@@ -972,6 +1005,22 @@ def admin_add_points():
             )
             
             if success:
+                # تسجيل عملية خصم النقاط في سجل التدقيق
+                ip_address = request.remote_addr
+                if 'X-Forwarded-For' in request.headers:
+                    ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                
+                log_audit_event(
+                    event_type='POINTS_DEDUCTION',
+                    severity='WARNING',
+                    details=f"تم خصم {absolute_points} كربتو من حساب {user.username} بواسطة المشرف {current_user.username}. السبب: {description}",
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=ip_address,
+                    notify_admin=True,
+                    related_user_id=user.id
+                )
+                
                 flash(f'تم خصم {absolute_points} كربتو من حساب {user.username} بنجاح', 'success')
                 app.logger.info(f"Admin {current_user.username} deducted {absolute_points} points from user {user.username}")
             else:
@@ -1070,6 +1119,7 @@ def admin_user_purchases(user_id):
 
 @app.route('/admin/purchases/add', methods=['GET', 'POST'])
 @admin_required
+@limiter.limit("10 per minute")  # تقييد معدل الطلبات على عمليات إضافة المشتريات
 def admin_add_purchase():
     """إضافة عملية شراء كربتو يدوياً"""
     from models import PurchaseRecord, PointsTransaction
