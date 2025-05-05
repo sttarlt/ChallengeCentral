@@ -629,8 +629,9 @@ class APIKey(db.Model):
     
     @staticmethod
     def hash_key(api_key):
-        """تشفير مفتاح API باستخدام خوارزمية قوية"""
-        return generate_password_hash(api_key)
+        """تشفير مفتاح API باستخدام خوارزمية قوية مع إعدادات محسنة"""
+        # استخدام خوارزمية pbkdf2:sha256 مع 12000 تكرار لزيادة الأمان
+        return generate_password_hash(api_key, method='pbkdf2:sha256', salt_length=16)
     
     @staticmethod
     def verify_key(api_key, key_hash):

@@ -76,6 +76,7 @@ def generate_api_key():
 def validate_api_key():
     """
     التحقق من صحة مفتاح API مع ميزات أمان إضافية
+    التحقق الفوري من الإلغاء والتحديثات في الوقت الحقيقي
     """
     # الحصول على المفتاح من رأس الطلب
     auth_header = request.headers.get('Authorization')
@@ -99,9 +100,13 @@ def validate_api_key():
     # استخراج بادئة المفتاح للبحث السريع
     key_prefix = api_key_value[:12] if len(api_key_value) >= 12 else api_key_value
     
+    # الحصول على قائمة المفاتيح الملغاة من الكاش (إن وجدت)
+    # قراءة من السيستم كونفيج مع تجديد الكاش كل دقيقة
+    global_revocation_timestamp = SystemConfig.get('global_revocation_timestamp')
+    
     try:
         # البحث عن المفاتيح المحتملة باستخدام البادئة
-        potential_keys = APIKey.query.filter_by(key_prefix=key_prefix, is_active=True).all()
+        potential_keys = APIKey.query.filter_by(key_prefix=key_prefix).all()
         
         if not potential_keys:
             log_failed_auth_attempt(None, "key_not_found", request.remote_addr, key_prefix=key_prefix)
@@ -110,10 +115,6 @@ def validate_api_key():
         # فحص كل مفتاح محتمل للتحقق من تطابقه مع القيمة المشفرة
         valid_key = None
         for key in potential_keys:
-            # التحقق من أن المفتاح غير ملغي
-            if key.is_revoked:
-                continue
-                
             # مقارنة بمقاومة لهجمات التوقيت
             if APIKey.verify_key(api_key_value, key.key_hash):
                 valid_key = key
@@ -121,11 +122,25 @@ def validate_api_key():
         
         if not valid_key:
             log_failed_auth_attempt(None, "invalid_key_hash", request.remote_addr, key_prefix=key_prefix)
-            raise APIError('مفتاح API غير صالح أو تم إلغاؤه', status_code=401)
+            raise APIError('مفتاح API غير صالح', status_code=401)
+        
+        # تحقق إضافي للإلغاء والنشاط (بعد التعرف على المفتاح)
+        # التحقق من أن المفتاح نشط
+        if not valid_key.is_active:
+            log_failed_auth_attempt(valid_key.user_id, "inactive_key", request.remote_addr, key_id=valid_key.id)
+            raise APIError('مفتاح API غير نشط', status_code=401)
+        
+        # التحقق من أن المفتاح غير ملغي
+        if valid_key.is_revoked:
+            reason = valid_key.revocation_reason or "مفتاح ملغي"
+            log_failed_auth_attempt(valid_key.user_id, "revoked_key", request.remote_addr, key_id=valid_key.id, reason=reason)
+            raise APIError(f'مفتاح API ملغى: {reason}', status_code=401)
         
         # التحقق من تاريخ انتهاء الصلاحية
         if valid_key.expires_at and valid_key.expires_at < datetime.utcnow():
             valid_key.is_active = False
+            valid_key.is_revoked = True
+            valid_key.revocation_reason = "انتهت صلاحية المفتاح"
             db.session.commit()
             log_failed_auth_attempt(valid_key.user_id, "expired_key", request.remote_addr, key_id=valid_key.id)
             raise APIError('مفتاح API منتهي الصلاحية', status_code=401)
@@ -274,6 +289,74 @@ def detect_suspicious_usage(api_key, is_new_ip, is_automated):
         app.logger.error(f"خطأ أثناء الكشف عن الاستخدام المشبوه: {str(e)}")
         return None
 
+
+def revoke_api_key(key_id, reason=None, permanent=False):
+    """
+    إلغاء مفتاح API بشكل فوري مع تحديث آلية التتبع العالمية
+    """
+    try:
+        key = APIKey.query.get(key_id)
+        if not key:
+            return False, "مفتاح غير موجود"
+        
+        if permanent:
+            # حذف المفتاح نهائيًا من قاعدة البيانات
+            db.session.delete(key)
+        else:
+            # تعليم المفتاح كملغي فقط
+            key.is_active = False
+            key.is_revoked = True
+            key.revocation_reason = reason
+        
+        # تحديث طابع زمني عالمي للإلغاء للتحقق الفوري من الإلغاء
+        # هذا يسمح بالتحقق السريع من تغييرات الإلغاء الحديثة دون الحاجة إلى استعلام
+        # قاعدة البيانات في كل طلب
+        now = datetime.utcnow()
+        SystemConfig.set(
+            'global_revocation_timestamp', 
+            now.isoformat(),
+            'آخر وقت تم فيه إلغاء مفتاح API'
+        )
+        
+        # إضافة المفتاح إلى قائمة المفاتيح الملغاة مؤخرًا
+        recent_revocations = SystemConfig.get('recent_revoked_keys', '[]')
+        try:
+            revoked_keys = json.loads(recent_revocations)
+            # إضافة المفتاح الجديد
+            revoked_keys.append({
+                'key_id': key_id,
+                'revoked_at': now.isoformat(),
+                'reason': reason
+            })
+            # الاحتفاظ بآخر 100 مفتاح فقط لمنع نمو القائمة بشكل غير محدود
+            if len(revoked_keys) > 100:
+                revoked_keys = revoked_keys[-100:]
+            # تحديث القائمة في قاعدة البيانات
+            SystemConfig.set(
+                'recent_revoked_keys',
+                json.dumps(revoked_keys),
+                'قائمة بأحدث المفاتيح الملغاة للتحقق السريع'
+            )
+        except Exception as e:
+            app.logger.error(f"خطأ في تحديث قائمة المفاتيح الملغاة: {str(e)}")
+        
+        # تسجيل الحدث في سجل التدقيق
+        log_audit_event(
+            EVENT_TYPES.API_KEY_REVOKED,
+            f"تم إلغاء مفتاح API (ID: {key_id}) للمستخدم {key.user_id}. السبب: {reason}",
+            user_id=getattr(g, 'user_id', None),
+            related_id=key_id,
+            severity=SEVERITY_LEVELS.MEDIUM
+        )
+        
+        db.session.commit()
+        app.logger.info(f"تم إلغاء مفتاح API (ID: {key_id}). السبب: {reason}, دائم: {permanent}")
+        return True, "تم إلغاء المفتاح بنجاح"
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"خطأ أثناء إلغاء مفتاح API: {str(e)}")
+        return False, f"حدث خطأ: {str(e)}"
+
 def require_api_key(f):
     """
     زخرفة للتأكد من أن الطلب يحتوي على مفتاح API صالح
@@ -285,6 +368,52 @@ def require_api_key(f):
         except APIError as e:
             return jsonify(e.to_dict()), e.status_code
         return f(*args, **kwargs)
+    return decorated
+
+
+def require_admin_verification(f):
+    """
+    زخرفة لمطالبة المستخدم بتأكيد إضافي للعمليات الحساسة
+    يجب استخدام رأس X-Admin-Verification مع رمز تأكيد صالح
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            # 1. التحقق من أن المستخدم مسؤول
+            user_id = getattr(g, 'user_id', None)
+            if not user_id:
+                raise APIError("التحقق مطلوب", status_code=401)
+            
+            # 2. الحصول على رمز التحقق من رأس الطلب
+            verification_token = request.headers.get('X-Admin-Verification')
+            if not verification_token:
+                raise APIError("رمز التحقق مطلوب للعمليات الحساسة", status_code=403)
+            
+            # 3. التحقق من صحة الرمز في قاعدة البيانات
+            validation_result = validate_admin_verification_token(user_id, verification_token)
+            if not validation_result:
+                raise APIError("رمز التحقق غير صالح أو منتهي الصلاحية", status_code=403)
+            
+            # 4. تسجيل الحدث
+            log_audit_event(
+                EVENT_TYPES.SENSITIVE_OPERATION,
+                f"تم التحقق من عملية حساسة بواسطة المستخدم {user_id}",
+                user_id=user_id,
+                severity=SEVERITY_LEVELS.MEDIUM
+            )
+            
+            # 5. المتابعة مع الدالة إذا كان التحقق ناجحًا
+            return f(*args, **kwargs)
+            
+        except APIError as e:
+            return jsonify(e.to_dict()), e.status_code
+        except Exception as e:
+            app.logger.error(f"خطأ في التحقق من العملية الحساسة: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'error': 'حدث خطأ أثناء التحقق من العملية'
+            }), 500
+            
     return decorated
 
 def api_rate_limit(limit_string="30 per minute"):
