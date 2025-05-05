@@ -212,11 +212,37 @@ def leaderboard():
 
 
 # Admin routes
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if current_user.is_authenticated and current_user.is_admin:
+        return redirect(url_for('admin_dashboard'))
+    
+    if current_user.is_authenticated and not current_user.is_admin:
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
+    
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and user.check_password(form.password.data):
+            if user.is_admin:
+                login_user(user)
+                flash('تم تسجيل الدخول كمشرف بنجاح', 'success')
+                return redirect(url_for('admin_dashboard'))
+            else:
+                flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        else:
+            flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
+    
+    return render_template('admin/login.html', form=form)
+
+
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     total_users = User.query.filter_by(is_admin=False).count()
     total_competitions = Competition.query.count()
@@ -241,7 +267,8 @@ def admin_dashboard():
 @login_required
 def admin_competitions():
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     competitions = Competition.query.order_by(desc(Competition.created_at)).all()
     return render_template('admin/competitions.html', competitions=competitions)
@@ -251,7 +278,8 @@ def admin_competitions():
 @login_required
 def admin_new_competition():
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     form = CompetitionForm()
     if form.validate_on_submit():
@@ -275,7 +303,8 @@ def admin_new_competition():
 @login_required
 def admin_edit_competition(competition_id):
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     competition = Competition.query.get_or_404(competition_id)
     form = CompetitionForm(obj=competition)
@@ -299,7 +328,8 @@ def admin_edit_competition(competition_id):
 @login_required
 def admin_rewards():
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     rewards = Reward.query.order_by(desc(Reward.created_at)).all()
     return render_template('admin/rewards.html', rewards=rewards)
@@ -309,7 +339,8 @@ def admin_rewards():
 @login_required
 def admin_new_reward():
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     form = RewardForm()
     if form.validate_on_submit():
@@ -332,7 +363,8 @@ def admin_new_reward():
 @login_required
 def admin_edit_reward(reward_id):
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     reward = Reward.query.get_or_404(reward_id)
     form = RewardForm(obj=reward)
@@ -355,7 +387,8 @@ def admin_edit_reward(reward_id):
 @login_required
 def admin_users():
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     users = User.query.filter_by(is_admin=False).order_by(desc(User.created_at)).all()
     return render_template('admin/users.html', users=users)
@@ -365,7 +398,8 @@ def admin_users():
 @login_required
 def admin_redemptions():
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     redemptions = RewardRedemption.query.order_by(desc(RewardRedemption.created_at)).all()
     return render_template('admin/redemptions.html', redemptions=redemptions)
@@ -375,7 +409,8 @@ def admin_redemptions():
 @login_required
 def admin_update_redemption(redemption_id):
     if not current_user.is_admin:
-        abort(403)
+        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+        return redirect(url_for('index'))
     
     redemption = RewardRedemption.query.get_or_404(redemption_id)
     form = RedemptionStatusForm(obj=redemption)
