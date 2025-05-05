@@ -3,7 +3,7 @@
 نقاط النهاية المؤمنة للوصول إلى البيانات والوظائف
 """
 
-from flask import Blueprint, jsonify, request, g, current_app
+from flask import Blueprint, jsonify, request, g, current_app, make_response
 from flask_cors import CORS
 import time
 import json
@@ -47,9 +47,10 @@ CORS(api_bp,
 def handle_api_exception(error):
     return handle_api_error(error)
 
-# معالج خاص لطلبات OPTIONS (لدعم CORS preflight)
+# معالج خاص لطلبات OPTIONS (لدعم CORS preflight) لكل نقاط النهاية
 @api_bp.route('/<path:path>', methods=['OPTIONS'])
-def handle_preflight_request(path):
+@api_bp.route('/', methods=['OPTIONS'])
+def handle_preflight_request(path=None):
     """
     معالج خاص لطلبات OPTIONS التي يرسلها المتصفح قبل الطلبات الحقيقية عبر النطاقات
     يسمح بالتحقق من الصلاحيات والرؤوس المسموح بها
@@ -57,7 +58,8 @@ def handle_preflight_request(path):
     """
     # تسجيل طلب preflight للتحليل
     origin = request.headers.get('Origin', '')
-    app.logger.debug(f"CORS Preflight request for path: {path} from origin: {origin}")
+    path_info = path if path else "root"
+    app.logger.debug(f"CORS Preflight request for path: {path_info} from origin: {origin}")
     
     # التحقق من الأصل المسموح به يدويًا كطبقة أمان إضافية
     if origin and origin not in safe_origins:
@@ -67,12 +69,14 @@ def handle_preflight_request(path):
             'error': 'Unauthorized origin'
         }), 403
     
-    # تحضير استجابة فارغة مع الرؤوس المناسبة
-    response = app.make_response(('', 204))
+    # تحضير الاستجابة مع رمز الحالة 204 - No Content
+    response = make_response('', 204)
     
     # إضافة الرؤوس المطلوبة لـ CORS
     if origin:
         response.headers['Access-Control-Allow-Origin'] = origin
+        # إضافة Vary: Origin لإخبار الوسطاء بتخزين الاستجابات بناءً على الأصل
+        response.headers['Vary'] = 'Origin'
     
     # تحديد الطرق المسموح بها
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
@@ -80,8 +84,8 @@ def handle_preflight_request(path):
     # تحديد الرؤوس المسموح بها
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-Admin-Verification'
     
-    # مدة صلاحية الاستجابة المسبقة
-    response.headers['Access-Control-Max-Age'] = '3600'
+    # مدة صلاحية الاستجابة المسبقة (زيادة المدة لتقليل عدد طلبات preflight)
+    response.headers['Access-Control-Max-Age'] = '86400'  # 24 ساعة
     
     # عدم السماح باستخدام بيانات الاعتماد
     response.headers['Access-Control-Allow-Credentials'] = 'false'
