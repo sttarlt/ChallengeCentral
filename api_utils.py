@@ -650,6 +650,62 @@ def sanitize_input(data, allowed_fields=None, max_length=None):
     
     return sanitized
 
+def validate_admin_verification_token(user_id, token):
+    """
+    التحقق من صحة رمز التأكيد الإداري
+    
+    Args:
+        user_id: معرف المستخدم المسؤول
+        token: رمز التأكيد المقدم للتحقق
+    
+    Returns:
+        bool: True إذا كان الرمز صالحًا، False إذا كان غير صالح أو منتهي الصلاحية
+    """
+    from werkzeug.security import check_password_hash
+    
+    # 1. التحقق من توفر الرمز المخزن
+    token_key = f"admin_verification_token_{user_id}"
+    token_config = SystemConfig.query.filter_by(key=token_key).first()
+    if not token_config or not token_config.value:
+        app.logger.warning(f"محاولة استخدام رمز تحقق غير موجود للمستخدم {user_id}")
+        return False
+    
+    # 2. التحقق من تطابق الرمز
+    if not check_password_hash(token_config.value, token):
+        app.logger.warning(f"رمز تحقق غير صحيح للمستخدم {user_id}")
+        return False
+    
+    # 3. التحقق من صلاحية وقت الرمز
+    timestamp_key = f"admin_verification_timestamp_{user_id}"
+    timestamp_config = SystemConfig.query.filter_by(key=timestamp_key).first()
+    if not timestamp_config or not timestamp_config.value:
+        app.logger.error(f"طابع زمني مفقود لرمز تحقق المستخدم {user_id}")
+        return False
+    
+    # التحقق من صلاحية الوقت (10 دقائق)
+    try:
+        token_time = datetime.fromisoformat(timestamp_config.value)
+        if (datetime.utcnow() - token_time).total_seconds() >= 600:  # أكثر من 10 دقائق
+            app.logger.warning(f"رمز تحقق منتهي الصلاحية للمستخدم {user_id}")
+            return False
+        
+        # حذف الرمز بعد الاستخدام (للاستخدام مرة واحدة)
+        db.session.delete(token_config)
+        db.session.delete(timestamp_config)
+        db.session.commit()
+        
+        # تسجيل الاستخدام الناجح
+        app.logger.info(f"تحقق ناجح للمستخدم {user_id}")
+        return True
+    except (ValueError, TypeError) as e:
+        app.logger.error(f"خطأ في تنسيق الطابع الزمني لرمز تحقق المستخدم {user_id}: {str(e)}")
+        return False
+    except Exception as e:
+        app.logger.error(f"خطأ أثناء التحقق من رمز المستخدم {user_id}: {str(e)}")
+        db.session.rollback()
+        return False
+
+
 def require_admin_verification(f):
     """
     زخرفة لمطالبة المستخدم بتأكيد إضافي للعمليات الحساسة
@@ -681,60 +737,34 @@ def require_admin_verification(f):
             if not verification_token:
                 raise APIError("رمز التحقق مطلوب للعمليات الحساسة", status_code=403)
                 
-            # 3.2 التحقق من الرمز المؤقت المخزن في قاعدة البيانات
-            if not is_valid:
-                # استرداد رمز التحقق المشفر من قاعدة البيانات
-                token_key = f"admin_verification_token_{user_id}"
-                token_config = SystemConfig.query.filter_by(key=token_key).first()
-                
-                if token_config and token_config.value:
-                    # التحقق من تطابق الرمز
-                    if check_password_hash(token_config.value, verification_token):
-                        # التحقق من صلاحية الرمز (يجب أن يكون حديثًا - أقل من 10 دقائق)
-                        timestamp_key = f"admin_verification_timestamp_{user_id}"
-                        timestamp_config = SystemConfig.query.filter_by(key=timestamp_key).first()
-                        
-                        if timestamp_config and timestamp_config.value:
-                            try:
-                                token_time = datetime.fromisoformat(timestamp_config.value)
-                                if (datetime.utcnow() - token_time).total_seconds() < 600:  # 10 دقائق
-                                    is_valid = True
-                                    
-                                    # حذف الرمز بعد الاستخدام (يستخدم مرة واحدة فقط)
-                                    # هذا يمنع إعادة استخدام نفس الرمز
-                                    db.session.delete(token_config)
-                                    db.session.delete(timestamp_config)
-                                    db.session.commit()
-                                else:
-                                    raise APIError('انتهت صلاحية رمز التحقق، يرجى طلب رمز جديد', status_code=401)
-                            except (ValueError, TypeError):
-                                app.logger.error(f"تنسيق غير صالح لوقت إنشاء الرمز: {timestamp_config.value}")
-                    
+            # 3. التحقق من صحة الرمز باستخدام الدالة المخصصة
+            is_valid = validate_admin_verification_token(user_id, verification_token)
+            
             if not is_valid:
                 # تسجيل محاولة فاشلة
                 log_audit_event(
-                    event_type="FAILED_VERIFICATION",
+                    event_type=EVENT_TYPES["FAILED_VERIFICATION"],
                     user_id=user_id,
                     details=f"محاولة تحقق فاشلة لعملية حساسة - الطلب: {request.path}",
-                    severity="ALERT",
-                    ip_address=get_client_ip() if 'get_client_ip' in globals() else request.remote_addr
+                    severity=SEVERITY_LEVELS["ALERT"],
+                    ip_address=get_client_ip()
                 )
                 
                 app.logger.warning(f"محاولة تحقق فاشلة لعملية حساسة: المستخدم {user_id}, الطلب: {request.path}")
                 raise APIError('رمز التحقق غير صالح أو منتهي الصلاحية', status_code=401)
                 
-            # تسجيل نجاح التحقق
+            # 4. تسجيل نجاح التحقق
             log_audit_event(
-                event_type="ADMIN_VERIFICATION_SUCCESS",
+                event_type=EVENT_TYPES["ADMIN_VERIFICATION_SUCCESS"],
                 user_id=user_id,
                 details=f"تحقق ناجح لعملية حساسة - الطلب: {request.path}",
-                severity="INFO",
-                ip_address=get_client_ip() if 'get_client_ip' in globals() else request.remote_addr
+                severity=SEVERITY_LEVELS["INFO"],
+                ip_address=get_client_ip()
             )
             
             app.logger.info(f"تحقق ناجح لعملية حساسة: المستخدم {user_id}, الطلب: {request.path}")
             
-            # تنفيذ الدالة الأصلية بعد نجاح التحقق
+            # 5. تنفيذ الدالة الأصلية بعد نجاح التحقق
             return f(*args, **kwargs)
             
         except APIError as e:

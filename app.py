@@ -39,6 +39,11 @@ def add_security_headers(response):
         # شامل النطاقات الفرعية لتغطية جميع الخوادم الفرعية
         # تفعيل preload للتضمين في قوائم preload للمتصفحات الرئيسية
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+        
+        # توجيه حركة المرور إلى HTTPS تلقائيًا
+        if request.url.startswith('http://'):
+            https_url = request.url.replace('http://', 'https://', 1)
+            return redirect(https_url, code=301)
     
     # رؤوس أمان أساسية - تطبق في جميع البيئات
     
@@ -55,11 +60,35 @@ def add_security_headers(response):
     # التحكم في كيفية إرسال معلومات الإحالة عند التنقل من موقعنا لمواقع أخرى
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     
-    # رأس Feature-Policy للتحكم في ميزات المتصفح المتاحة للموقع
+    # إضافة رأس Content-Security-Policy للحماية ضد هجمات XSS وحقن المحتوى
+    csp_directives = [
+        "default-src 'self'",  # افتراضي: السماح فقط بالمحتوى من نفس المصدر
+        "script-src 'self' https://cdn.jsdelivr.net https://cdn.replit.com", # مصادر السكريبت
+        "style-src 'self' https://cdn.jsdelivr.net https://cdn.replit.com 'unsafe-inline'", # مصادر الأنماط
+        "img-src 'self' data: https:", # مصادر الصور
+        "font-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com", # مصادر الخطوط
+        "connect-src 'self'", # السماح بالاتصال بنفس المصدر فقط
+        "frame-ancestors 'none'", # عدم السماح بتضمين الموقع في إطارات
+        "base-uri 'self'", # قيود على عنصر <base>
+        "form-action 'self'", # السماح بإرسال النماذج لنفس المصدر فقط
+        "object-src 'none'", # منع محتوى object و embed
+        "block-all-mixed-content", # منع المحتوى المختلط
+        "upgrade-insecure-requests" # ترقية الطلبات غير المؤمنة إلى HTTPS
+    ]
+    
+    # تكوين سياسة أمان المحتوى بناءً على البيئة
+    if current_app.debug:
+        # سماح إضافي في بيئة التطوير
+        csp_directives.append("script-src 'self' 'unsafe-inline' 'unsafe-eval'")
+        csp_directives.append("style-src 'self' 'unsafe-inline'")
+    
+    # إضافة الرأس إلى الاستجابة
+    response.headers['Content-Security-Policy'] = "; ".join(csp_directives)
+    
+    # رأس Permissions-Policy (سابقًا Feature-Policy) للتحكم في ميزات المتصفح المتاحة للموقع
     # منع الوصول للميزات الحساسة مثل الميكروفون والكاميرا والموقع وغيرها
-    feature_policy = "camera 'none'; microphone 'none'; geolocation 'none'; "
-    feature_policy += "payment 'none'; usb 'none'; magnetometer 'none'; accelerometer 'none';"
-    response.headers['Permissions-Policy'] = feature_policy
+    permissions_policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), accelerometer=()"
+    response.headers['Permissions-Policy'] = permissions_policy
     
     # إضافة رأس Cache-Control للتحكم في تخزين الصفحات الحساسة مؤقتًا
     # منع تخزين المحتوى الديناميكي المقدم من البيانات الحساسة
@@ -67,21 +96,6 @@ def add_security_headers(response):
         response.headers['Cache-Control'] = 'no-store, max-age=0, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
-    
-    # سياسة أمان المحتوى (CSP) محسنة
-    # تحديد المصادر المسموح بها لتحميل المحتوى
-    # تقييد تشغيل البرامج النصية و CSS والوسائط من مصادر موثوقة فقط
-    csp = "default-src 'self'; "
-    csp += "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " 
-    csp += "style-src 'self' https://cdn.jsdelivr.net https://cdn.replit.com 'unsafe-inline'; "
-    csp += "img-src 'self' data: https:; "  # السماح بالصور من مصادر HTTPS
-    csp += "font-src 'self' https://cdn.jsdelivr.net https://cdn.replit.com; "
-    csp += "connect-src 'self'; "  # تقييد اتصالات AJAX و WebSocket للمصدر الذاتي فقط
-    csp += "frame-ancestors 'none'; "  # منع تضمين صفحاتنا في إطارات خارجية (مكافحة clickjacking)
-    csp += "form-action 'self'; "  # تقييد عمليات تقديم النماذج للمصدر الذاتي فقط
-    csp += "base-uri 'self'; "  # تقييد استخدام وسم <base> للمصدر الذاتي فقط
-    csp += "object-src 'none';"  # منع تضمين كائنات مثل Flash و Java
-    response.headers['Content-Security-Policy'] = csp
     
     return response
 

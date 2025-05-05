@@ -34,23 +34,41 @@ audit_logger.addHandler(file_handler)
 
 # أنواع الأحداث
 EVENT_TYPES = {
+    # أحداث تسجيل الدخول والمستخدمين
     'LOGIN_ATTEMPT': 'محاولة تسجيل الدخول',
     'LOGIN_SUCCESS': 'تسجيل دخول ناجح',
     'LOGIN_FAILURE': 'فشل تسجيل الدخول',
     'LOGOUT': 'تسجيل الخروج',
     'PASSWORD_CHANGE': 'تغيير كلمة المرور',
     'USER_REGISTRATION': 'تسجيل مستخدم جديد',
+    'USER_MODIFICATION': 'تعديل بيانات مستخدم',
+    
+    # أحداث المشرفين
     'ADMIN_ACCESS': 'وصول إلى واجهة المشرف',
     'SETTINGS_CHANGE': 'تغيير إعدادات النظام',
+    'ADMIN_VERIFICATION': 'التحقق من هوية المشرف',
+    'ADMIN_VERIFICATION_SUCCESS': 'تحقق ناجح من هوية المشرف',
+    'UNAUTHORIZED_ACCESS': 'محاولة وصول غير مصرح به',
+    
+    # أحداث نقاط وجوائز
     'POINTS_ADDITION': 'إضافة نقاط كربتو',
     'POINTS_DEDUCTION': 'خصم نقاط كربتو',
     'REWARD_REDEMPTION': 'استبدال جائزة',
-    'COMPETITION_CREATION': 'إنشاء مسابقة جديدة',
-    'COMPETITION_MODIFICATION': 'تعديل مسابقة',
     'REWARD_CREATION': 'إنشاء جائزة جديدة',
     'REWARD_MODIFICATION': 'تعديل جائزة',
-    'USER_MODIFICATION': 'تعديل بيانات مستخدم',
+    
+    # أحداث المسابقات
+    'COMPETITION_CREATION': 'إنشاء مسابقة جديدة',
+    'COMPETITION_MODIFICATION': 'تعديل مسابقة',
+    
+    # أحداث API و أمان
+    'API_KEY_GENERATED': 'إنشاء مفتاح API جديد',
+    'API_KEY_REVOKED': 'إلغاء مفتاح API',
+    'API_ACCESS_DENIED': 'رفض الوصول للـ API',
+    'FAILED_VERIFICATION': 'فشل في التحقق من الهوية',
+    'RATE_LIMIT_EXCEEDED': 'تجاوز حد معدل الاستخدام',
     'SUSPICIOUS_ACTIVITY': 'نشاط مشبوه',
+    'SENSITIVE_OPERATION': 'عملية حساسة',
 }
 
 # مستويات الخطورة
@@ -108,7 +126,20 @@ def log_audit_event(event_type, severity, details=None, user_id=None, username=N
     audit_logger.info(json.dumps(event_data, ensure_ascii=False))
     
     # إنشاء إشعار للمشرفين إذا تم طلب ذلك
-    if notify_admin and event_type in ['LOGIN_FAILURE', 'SUSPICIOUS_ACTIVITY', 'SETTINGS_CHANGE', 'POINTS_ADDITION', 'POINTS_DEDUCTION']:
+    notify_events = [
+        'LOGIN_FAILURE', 
+        'SUSPICIOUS_ACTIVITY', 
+        'SETTINGS_CHANGE', 
+        'POINTS_ADDITION', 
+        'POINTS_DEDUCTION',
+        'API_KEY_REVOKED',
+        'API_ACCESS_DENIED',
+        'FAILED_VERIFICATION',
+        'RATE_LIMIT_EXCEEDED',
+        'UNAUTHORIZED_ACCESS',
+        'SENSITIVE_OPERATION'
+    ]
+    if notify_admin or event_type in notify_events:
         create_admin_notification(event_type, event_data)
 
 def create_admin_notification(event_type, event_data):
