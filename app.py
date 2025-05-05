@@ -32,15 +32,14 @@ def add_security_headers(response):
     Returns:
         استجابة معززة برؤوس أمان إضافية
     """
-    # إضافة رؤوس HTTPS فقط في بيئة الإنتاج
-    # تطبق دائمًا في وضع غير التصحيح
-    if not current_app.debug and not current_app.testing:
+    # إضافة رؤوس HTTPS فقط في بيئة الإنتاج وليس في Replit
+    if not current_app.debug and not current_app.testing and not os.environ.get('REPL_ID'):
         # رأس HSTS لفرض HTTPS مع فترة صلاحية سنة (31536000 ثانية)
         # شامل النطاقات الفرعية لتغطية جميع الخوادم الفرعية
         # تفعيل preload للتضمين في قوائم preload للمتصفحات الرئيسية
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
         
-        # توجيه حركة المرور إلى HTTPS تلقائيًا
+        # توجيه حركة المرور إلى HTTPS تلقائيًا (ليس في Replit)
         if request.url.startswith('http://'):
             https_url = request.url.replace('http://', 'https://', 1)
             return redirect(https_url, code=301)
@@ -51,7 +50,9 @@ def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     
     # منع تضمين الموقع في إطارات خارجية لمنع هجمات الـ clickjacking
-    response.headers['X-Frame-Options'] = 'DENY'
+    # Only apply X-Frame-Options outside Replit environment
+    if not os.environ.get('REPL_ID'):
+        response.headers['X-Frame-Options'] = 'DENY'
     
     # تشغيل فلتر XSS المدمج في المتصفح مع وضع الحظر (لدعم المتصفحات القديمة)
     # ملاحظة: هذا الرأس مهمل في المتصفحات الحديثة لصالح CSP، لكن يبقى مفيدًا للمتصفحات القديمة
@@ -82,8 +83,11 @@ def add_security_headers(response):
         "form-action 'self'", # السماح بإرسال النماذج لنفس المصدر فقط
         "object-src 'none'", # منع محتوى object و embed
         "block-all-mixed-content", # منع المحتوى المختلط
-        "upgrade-insecure-requests" # ترقية الطلبات غير المؤمنة إلى HTTPS
     ])
+    
+    # Only add upgrade-insecure-requests outside of Replit
+    if not os.environ.get('REPL_ID'):
+        csp_directives.append("upgrade-insecure-requests") # ترقية الطلبات غير المؤمنة إلى HTTPS
     
     # تكوين سياسة أمان المحتوى بناءً على البيئة
     if current_app.debug:
