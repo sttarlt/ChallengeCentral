@@ -123,6 +123,19 @@ def register():
         db.session.add(user)
         db.session.commit()
         
+        # منح المكافأة الترحيبية للمستخدم الجديد (تُمنح لجميع المستخدمين الجدد)
+        welcome_bonus = config.REFERRAL_WELCOME_BONUS
+        if welcome_bonus > 0:
+            success = user.add_points(
+                points=welcome_bonus,
+                transaction_type='welcome_bonus',
+                description=f'مكافأة ترحيبية للمستخدم الجديد - {welcome_bonus} كربتو',
+                created_by_id=user.id,
+                request=request
+            )
+            if success:
+                flash(f'تهانينا! لقد حصلت على {welcome_bonus} كربتو كمكافأة ترحيبية', 'success')
+        
         # إذا كان المستخدم قد سجل عبر رابط إحالة، نقوم بربطه بالمستخدم الذي قام بالإحالة
         if referrer:
             # إضافة علاقة الإحالة
@@ -139,12 +152,7 @@ def register():
             )
             
             db.session.add(referral)
-            
-            # منح المكافأة الترحيبية للمستخدم الجديد (هذه تُمنح فوراً)
-            welcome_bonus = config.REFERRAL_WELCOME_BONUS
-            if welcome_bonus > 0:
-                user.add_points(welcome_bonus)
-                flash(f'تهانينا! لقد حصلت على {welcome_bonus} كربتو كمكافأة ترحيبية', 'success')
+            db.session.commit()
             
             # التحقق مما إذا كان يجب التحقق من الإحالة عبر المشاركة في مسابقة
             if config.REFERRAL_REQUIRE_COMPETITION_PARTICIPATION:
