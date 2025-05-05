@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField, IntegerField, BooleanField, DateTimeField, SelectField
-from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField, IntegerField, BooleanField, DateTimeField, SelectField, FloatField
+from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError, NumberRange
 from models import User
 
 
@@ -80,3 +80,13 @@ class DirectMessageForm(FlaskForm):
         user = User.query.filter_by(username=recipient_username.data).first()
         if not user:
             raise ValidationError('لم يتم العثور على هذا المستخدم.')
+
+
+class PointsPackageForm(FlaskForm):
+    name = StringField('اسم الباقة', validators=[DataRequired(), Length(max=50)])
+    price = FloatField('السعر (دولار)', validators=[DataRequired(), NumberRange(min=0.1)])
+    points = IntegerField('النقاط', validators=[DataRequired(), NumberRange(min=1)])
+    description = StringField('وصف مختصر', validators=[Length(max=255)])
+    is_active = BooleanField('نشط')
+    display_order = IntegerField('ترتيب العرض', validators=[DataRequired()], default=0)
+    submit = SubmitField('حفظ الباقة')

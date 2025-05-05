@@ -8,7 +8,8 @@ import config
 from forms import (
     LoginForm, RegistrationForm, CompetitionForm, RewardForm,
     ParticipationForm, RedeemRewardForm, RedemptionStatusForm,
-    CreateChatRoomForm, SendMessageForm, DirectMessageForm
+    CreateChatRoomForm, SendMessageForm, DirectMessageForm,
+    PointsPackageForm
 )
 from datetime import datetime
 
@@ -230,6 +231,14 @@ def leaderboard():
     return render_template('leaderboard.html', top_users=top_users)
 
 
+@app.route('/points-pricing')
+def points_pricing():
+    """عرض صفحة باقات النقاط وأسعارها"""
+    packages = PointsPackage.query.filter_by(is_active=True).order_by(PointsPackage.display_order).all()
+    contact_link = config.CONTACT_LINK
+    return render_template('points_pricing.html', packages=packages, contact_link=contact_link)
+
+
 # Admin routes
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -405,6 +414,89 @@ def admin_edit_reward(reward_id):
         return redirect(url_for('admin_rewards'))
     
     return render_template('admin/rewards.html', form=form, reward=reward)
+
+
+@app.route('/admin/points-packages', methods=['GET'])
+@admin_required
+def admin_points_packages():
+    """إدارة باقات النقاط"""
+    packages = PointsPackage.query.order_by(PointsPackage.display_order).all()
+    contact_link = config.CONTACT_LINK
+    return render_template('admin/points_packages.html', packages=packages, contact_link=contact_link)
+
+
+@app.route('/admin/points-packages/new', methods=['GET', 'POST'])
+@admin_required
+def admin_new_points_package():
+    """إضافة باقة نقاط جديدة"""
+    form = PointsPackageForm()
+    
+    if form.validate_on_submit():
+        package = PointsPackage(
+            name=form.name.data,
+            price=form.price.data,
+            points=form.points.data,
+            description=form.description.data,
+            is_active=form.is_active.data,
+            display_order=form.display_order.data
+        )
+        db.session.add(package)
+        db.session.commit()
+        flash('تم إضافة باقة النقاط بنجاح', 'success')
+        return redirect(url_for('admin_points_packages'))
+    
+    return render_template('admin/points_packages.html', form=form)
+
+
+@app.route('/admin/points-packages/edit/<int:package_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_points_package(package_id):
+    """تعديل باقة نقاط"""
+    package = PointsPackage.query.get_or_404(package_id)
+    form = PointsPackageForm(obj=package)
+    
+    if form.validate_on_submit():
+        package.name = form.name.data
+        package.price = form.price.data
+        package.points = form.points.data
+        package.description = form.description.data
+        package.is_active = form.is_active.data
+        package.display_order = form.display_order.data
+        
+        db.session.commit()
+        flash('تم تحديث باقة النقاط بنجاح', 'success')
+        return redirect(url_for('admin_points_packages'))
+    
+    return render_template('admin/points_packages.html', form=form, package=package)
+
+
+@app.route('/admin/config', methods=['GET', 'POST'])
+@admin_required
+def admin_config():
+    """تعديل إعدادات النظام"""
+    
+    if request.method == 'POST':
+        new_contact_link = request.form.get('contact_link')
+        
+        # Update the config.py file (we're doing this by modifying and writing to the file directly)
+        with open('config.py', 'r') as file:
+            lines = file.readlines()
+        
+        with open('config.py', 'w') as file:
+            for line in lines:
+                if 'CONTACT_LINK' in line:
+                    file.write(f'CONTACT_LINK = "{new_contact_link}"\n')
+                else:
+                    file.write(line)
+        
+        # Reload config
+        import importlib
+        importlib.reload(config)
+        
+        flash('تم تحديث إعدادات النظام بنجاح', 'success')
+        return redirect(url_for('admin_config'))
+    
+    return render_template('admin/config.html', contact_link=config.CONTACT_LINK)
 
 
 @app.route('/admin/users', methods=['GET'])
