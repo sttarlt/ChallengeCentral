@@ -53,13 +53,40 @@ def handle_preflight_request(path):
     """
     معالج خاص لطلبات OPTIONS التي يرسلها المتصفح قبل الطلبات الحقيقية عبر النطاقات
     يسمح بالتحقق من الصلاحيات والرؤوس المسموح بها
+    تحقق إضافي من الأصل (origin) للتأكد من أنه مدرج في القائمة المسموح بها
     """
     # تسجيل طلب preflight للتحليل
-    app.logger.debug(f"CORS Preflight request for path: {path}")
+    origin = request.headers.get('Origin', '')
+    app.logger.debug(f"CORS Preflight request for path: {path} from origin: {origin}")
     
-    # إرجاع استجابة فارغة مع الرؤوس المناسبة
-    # الرؤوس الأخرى (مثل Access-Control-Allow-Origin) ستتم إضافتها بواسطة ميدلوير CORS
-    return '', 204
+    # التحقق من الأصل المسموح به يدويًا كطبقة أمان إضافية
+    if origin and origin not in safe_origins:
+        app.logger.warning(f"CORS Preflight rejected for unauthorized origin: {origin}")
+        return jsonify({
+            'status': 'error',
+            'error': 'Unauthorized origin'
+        }), 403
+    
+    # تحضير استجابة فارغة مع الرؤوس المناسبة
+    response = app.make_response(('', 204))
+    
+    # إضافة الرؤوس المطلوبة لـ CORS
+    if origin:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    
+    # تحديد الطرق المسموح بها
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    
+    # تحديد الرؤوس المسموح بها
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-Admin-Verification'
+    
+    # مدة صلاحية الاستجابة المسبقة
+    response.headers['Access-Control-Max-Age'] = '3600'
+    
+    # عدم السماح باستخدام بيانات الاعتماد
+    response.headers['Access-Control-Allow-Credentials'] = 'false'
+    
+    return response
 
 # نقطة نهاية صحة النظام
 @api_bp.route('/health', methods=['GET'])
