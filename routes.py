@@ -1,9 +1,9 @@
-from flask import render_template, redirect, url_for, flash, request, abort, jsonify
+from flask import render_template, redirect, url_for, flash, request, abort, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import desc, func, or_
 from functools import wraps
 from app import app, db
-from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage
+from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral
 import config
 from forms import (
     LoginForm, RegistrationForm, CompetitionForm, RewardForm,
@@ -75,16 +75,65 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
+    # التقاط كود الإحالة من جلسة المستخدم (إذا كان قد زار رابط إحالة قبل ذلك)
+    referral_code = session.get('referral_code', None)
+    referrer = None
+    
+    if referral_code:
+        # البحث عن المستخدم صاحب كود الإحالة
+        referrer = User.query.filter_by(referral_code=referral_code).first()
+    
     form = RegistrationForm()
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data)
         user.set_password(form.password.data)
+        
+        # توليد كود إحالة للمستخدم الجديد
+        user.generate_referral_code()
+        
         db.session.add(user)
+        db.session.commit()
+        
+        # إذا كان المستخدم قد سجل عبر رابط إحالة، نقوم بربطه بالمستخدم الذي قام بالإحالة
+        if referrer:
+            # إضافة علاقة الإحالة
+            user.referred_by_id = referrer.id
+            
+            # إنشاء سجل إحالة جديد
+            referral = Referral(
+                referrer_id=referrer.id,
+                referred_id=user.id,
+                status='active'
+            )
+            
+            # إضافة مكافأة للمستخدم الجديد
+            welcome_bonus = config.REFERRAL_WELCOME_BONUS
+            user.add_points(welcome_bonus)
+            
+            # زيادة عدد الإحالات للمستخدم المُحيل
+            referrer.total_referrals += 1
+            
+            # إضافة مكافأة للمستخدم المُحيل
+            reward_per_friend = config.REFERRAL_REWARD_PER_FRIEND
+            points_added = referrer.add_referral_points(reward_per_friend)
+            
+            # التحقق من الوصول إلى معالم معينة (5 أو 10 إحالات)
+            milestones = config.REFERRAL_MILESTONE_REWARDS
+            for milestone, bonus in milestones.items():
+                if referrer.total_referrals % milestone == 0:  # إذا وصل لمضاعف الـ 5 أو الـ 10
+                    milestone_points = referrer.add_referral_points(bonus)
+                    break
+                    
+            db.session.add(referral)
+            
+            # مسح كود الإحالة من الجلسة
+            session.pop('referral_code', None)
+            
         db.session.commit()
         flash('تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول', 'success')
         return redirect(url_for('login'))
     
-    return render_template('register.html', form=form)
+    return render_template('register.html', form=form, referrer=referrer)
 
 
 @app.route('/logout')

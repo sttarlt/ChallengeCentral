@@ -27,13 +27,25 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Relationships
+    # حقول نظام الإحالة
+    referral_code = db.Column(db.String(16), unique=True, nullable=True)  # كود الإحالة الفريد
+    total_referrals = db.Column(db.Integer, default=0)  # إجمالي عدد الإحالات
+    monthly_referral_points = db.Column(db.Integer, default=0)  # نقاط الإحالة الشهرية
+    total_referral_points = db.Column(db.Integer, default=0)  # إجمالي نقاط الإحالة المكتسبة
+    last_referral_reset = db.Column(db.DateTime, default=datetime.utcnow)  # تاريخ آخر إعادة ضبط شهري
+    referred_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # من قام بدعوة هذا المستخدم
+    
+    # العلاقات
     participations = db.relationship('Participation', backref='participant', lazy='dynamic')
     redemptions = db.relationship('RewardRedemption', backref='user', lazy='dynamic')
-    # Chat relationships
+    # علاقات الدردشة
     sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender', lazy='dynamic')
     received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', backref='recipient', lazy='dynamic')
     chat_rooms = db.relationship('ChatRoomMember', backref='user', lazy='dynamic')
+    # علاقة self للإحالات
+    referred_users = db.relationship('User', 
+                                    backref=db.backref('referred_by', uselist=False),
+                                    remote_side=[id])
 
     def set_password(self, password):
         """تشفير كلمة المرور"""
@@ -56,6 +68,101 @@ class User(UserMixin, db.Model):
             db.session.commit()
             return True
         return False
+    
+    def generate_referral_code(self):
+        """إنشاء كود إحالة فريد للمستخدم"""
+        import string
+        import random
+        
+        if not self.referral_code:
+            # إنشاء كود عشوائي من 8 أحرف
+            chars = string.ascii_letters + string.digits
+            code = ''.join(random.choice(chars) for _ in range(8))
+            
+            # التأكد من عدم وجود تكرار للكود
+            while User.query.filter_by(referral_code=code).first() is not None:
+                code = ''.join(random.choice(chars) for _ in range(8))
+            
+            self.referral_code = code
+            db.session.commit()
+        
+        return self.referral_code
+    
+    def get_referral_url(self):
+        """الحصول على رابط الإحالة الكامل"""
+        if not self.referral_code:
+            self.generate_referral_code()
+        return f"/invite?ref={self.referral_code}"
+    
+    def can_receive_referral_reward(self, reward_amount):
+        """التحقق مما إذا كان المستخدم يمكنه استلام مكافأة إحالة"""
+        # إعادة ضبط العداد الشهري إذا مر شهر
+        now = datetime.utcnow()
+        if (now.year > self.last_referral_reset.year or 
+            (now.year == self.last_referral_reset.year and now.month > self.last_referral_reset.month)):
+            self.monthly_referral_points = 0
+            self.last_referral_reset = now
+            db.session.commit()
+        
+        # التحقق من الحدود الشهرية والإجمالية
+        monthly_limit = 500  # الحد الشهري
+        total_limit = 1000   # الحد الإجمالي
+        
+        if self.total_referral_points >= total_limit:
+            return False, "total_limit"
+        
+        if self.monthly_referral_points + reward_amount > monthly_limit:
+            # يمكن منح مكافأة جزئية إذا تبقى جزء من الحد الشهري
+            if self.monthly_referral_points < monthly_limit:
+                return True, monthly_limit - self.monthly_referral_points
+            return False, "monthly_limit"
+        
+        return True, reward_amount
+    
+    def add_referral_points(self, points):
+        """إضافة نقاط إحالة مع مراعاة الحدود"""
+        can_receive, actual_points = self.can_receive_referral_reward(points)
+        
+        if isinstance(actual_points, (int, float)) and actual_points > 0:
+            self.add_points(actual_points)
+            self.monthly_referral_points += actual_points
+            self.total_referral_points += actual_points
+            db.session.commit()
+            return actual_points
+        
+        return 0
+    
+    def get_next_milestone_info(self):
+        """الحصول على معلومات المكافأة القادمة"""
+        # عدد الإحالات الحالية
+        current_referrals = self.total_referrals
+        
+        # المعالم والمكافآت المرتبطة بها
+        milestones = {
+            5: 10,   # 5 إحالات = 10 كربتو إضافية
+            10: 20,  # 10 إحالات = 20 كربتو إضافية
+        }
+        
+        # البحث عن المعلم التالي
+        next_milestone = None
+        reward = None
+        
+        for milestone, milestone_reward in sorted(milestones.items()):
+            remaining = milestone - (current_referrals % milestone)
+            if remaining < milestone:  # إذا لم يتم الوصول إلى المعلم بعد
+                next_milestone = milestone
+                reward = milestone_reward
+                break
+        
+        if next_milestone:
+            remaining = next_milestone - (current_referrals % next_milestone)
+            return {
+                'milestone': next_milestone,
+                'reward': reward,
+                'remaining': remaining
+            }
+        
+        return None
 
 
 class Competition(db.Model):
@@ -147,3 +254,20 @@ class Message(db.Model):
     content = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Referral(db.Model):
+    """نموذج لتتبع الإحالات بين المستخدمين"""
+    id = db.Column(db.Integer, primary_key=True)
+    referrer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    referred_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='active')  # active, expired, cancelled
+    reward_paid = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # علاقات قاعدة البيانات
+    referrer = db.relationship('User', foreign_keys=[referrer_id], backref='referrals_made')
+    referred = db.relationship('User', foreign_keys=[referred_id], backref='referral_source')
+    
+    def __repr__(self):
+        return f'<Referral {self.referrer_id} -> {self.referred_id}>'
