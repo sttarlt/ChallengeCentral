@@ -17,11 +17,13 @@ def admin_required(func):
     def decorated_view(*args, **kwargs):
         if not current_user.is_authenticated:
             app.logger.debug(f"Admin access denied: User not authenticated")
+            app.logger.warning(f"Unauthenticated user attempted to access admin endpoint: {request.path}")
             flash('يرجى تسجيل الدخول كمشرف للوصول إلى لوحة التحكم', 'warning')
             return redirect(url_for('admin_login'))
         if not current_user.is_admin:
             app.logger.debug(f"Admin access denied: User {current_user.username} is not admin")
-            flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+            app.logger.warning(f"Non-admin user {current_user.username} attempted to access admin endpoint: {request.path}")
+            flash('حسابك ليس لديه صلاحيات المشرف اللازمة للوصول إلى هذه الصفحة', 'danger')
             return redirect(url_for('index'))
         return func(*args, **kwargs)
     return decorated_view
@@ -262,7 +264,8 @@ def admin_login():
                     return redirect(url_for('admin_dashboard'))
                 else:
                     app.logger.debug("User is not admin")
-                    flash('ليس لديك صلاحيات كمشرف للوصول إلى لوحة التحكم', 'danger')
+                    app.logger.warning(f"Non-admin user {user.username} attempted to access admin panel")
+                    flash('حسابك ليس لديه صلاحيات مشرف. يرجى التواصل مع إدارة النظام إذا كنت تعتقد أن هذا خطأ.', 'danger')
                     return redirect(url_for('index'))
             else:
                 app.logger.debug("Password check failed")
@@ -412,22 +415,16 @@ def admin_users():
 
 
 @app.route('/admin/redemptions', methods=['GET'])
-@login_required
+@admin_required
 def admin_redemptions():
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     redemptions = RewardRedemption.query.order_by(desc(RewardRedemption.created_at)).all()
     return render_template('admin/redemptions.html', redemptions=redemptions)
 
 
 @app.route('/admin/redemptions/<int:redemption_id>', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def admin_update_redemption(redemption_id):
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     redemption = RewardRedemption.query.get_or_404(redemption_id)
     form = RedemptionStatusForm(obj=redemption)
