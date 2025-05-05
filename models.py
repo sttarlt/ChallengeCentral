@@ -1,7 +1,10 @@
 from app import db, app
 from flask_login import UserMixin
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+import secrets
+import string
+import uuid
 
 
 class PointsPackage(db.Model):
@@ -597,3 +600,64 @@ class SystemConfig(db.Model):
             db.session.add(config)
         db.session.commit()
         return config
+
+
+class APIKey(db.Model):
+    """مفاتيح واجهة برمجة التطبيقات (API) للمستخدمين"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    key = db.Column(db.String(128), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=True)  # وصف مختصر للمفتاح (مثل "تطبيق الجوال" أو "موقع الويب")
+    permissions = db.Column(db.String(255), default="read")  # الصلاحيات (read, write, admin, etc)
+    is_active = db.Column(db.Boolean, default=True)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    usage_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    
+    # العلاقات
+    user = db.relationship('User', backref='api_keys')
+    
+    def __repr__(self):
+        return f'<APIKey {self.id} for user {self.user_id}>'
+    
+    @classmethod
+    def generate_key(cls, user_id, name=None, permissions="read", expires_days=None):
+        """
+        إنشاء وتخزين مفتاح API جديد
+        
+        Args:
+            user_id: معرف المستخدم المالك للمفتاح
+            name: اسم المفتاح للتمييز (اختياري)
+            permissions: الصلاحيات المسموحة
+            expires_days: عدد الأيام قبل انتهاء صلاحية المفتاح (اختياري)
+            
+        Returns:
+            APIKey: كائن المفتاح الجديد أو None في حالة حدوث خطأ
+        """
+        try:
+            # توليد مفتاح عشوائي مع بادئة للتمييز
+            alphabet = string.ascii_letters + string.digits
+            api_key = 'msb_' + ''.join(secrets.choice(alphabet) for _ in range(32))
+            
+            # إنشاء كائن المفتاح
+            key = cls(
+                user_id=user_id,
+                key=api_key,
+                name=name,
+                permissions=permissions
+            )
+            
+            # تعيين تاريخ انتهاء الصلاحية إذا كان مطلوبًا
+            if expires_days:
+                key.expires_at = datetime.utcnow() + timedelta(days=expires_days)
+            
+            # حفظ المفتاح في قاعدة البيانات
+            db.session.add(key)
+            db.session.commit()
+            
+            return key
+        except Exception as e:
+            app.logger.error(f"خطأ في إنشاء مفتاح API: {str(e)}")
+            db.session.rollback()
+            return None
