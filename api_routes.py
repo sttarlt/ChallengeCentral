@@ -17,8 +17,8 @@ from api_utils import (
 # إنشاء Blueprint للـ API
 api_bp = Blueprint('api', __name__, url_prefix='/api/v1')
 
-# تطبيق CORS مع الإعدادات المحسّنة
-# تعريف النطاقات المسموح بها بشكل مباشر
+# تطبيق CORS مع الإعدادات المحسّنة والمقيدة للأمان
+# تعريف النطاقات المسموح بها بشكل مباشر (قائمة مغلقة)
 safe_origins = [
     'https://musabaqati.com',         # الموقع الرئيسي
     'https://www.musabaqati.com',     # البديل مع www
@@ -34,6 +34,7 @@ if app.debug:
         'http://127.0.0.1:5000'
     ])
 
+# تكوين CORS بشكل مقيد لزيادة الأمان
 CORS(api_bp, 
      origins=safe_origins,
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

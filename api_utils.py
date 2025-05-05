@@ -9,6 +9,7 @@ import secrets
 import string
 import logging
 import ipaddress
+import json
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify, g, current_app, abort
@@ -416,6 +417,66 @@ def require_admin_verification(f):
             
     return decorated
 
+
+def validate_admin_verification_token(user_id, token):
+    """
+    التحقق من صحة رمز تأكيد العملية الحساسة
+    
+    Args:
+        user_id: معرف المستخدم المسؤول
+        token: رمز التحقق المقدم
+        
+    Returns:
+        bool: صحة الرمز
+    """
+    try:
+        # 1. البحث عن المستخدم والتحقق من أنه مسؤول
+        user = User.query.get(user_id)
+        if not user or not user.is_admin:
+            return False
+        
+        # 2. البحث عن الرمز في قاعدة البيانات
+        token_key = f"admin_verification_token_{user_id}"
+        token_info = SystemConfig.get(token_key)
+        
+        if not token_info:
+            return False
+            
+        try:
+            # 3. فك تشفير المعلومات المخزنة
+            token_data = json.loads(token_info)
+            stored_token = token_data.get('token')
+            expires_at = token_data.get('expires_at')
+            
+            # 4. التحقق من انتهاء صلاحية الرمز
+            if not stored_token or not expires_at:
+                return False
+                
+            # تحويل الطابع الزمني إلى كائن datetime
+            expires_at = datetime.fromisoformat(expires_at)
+            
+            if expires_at < datetime.utcnow():
+                # حذف الرمز منتهي الصلاحية
+                SystemConfig.set(token_key, None)
+                return False
+                
+            # 5. التحقق من تطابق الرمز
+            if not check_password_hash(stored_token, token):
+                return False
+                
+            # 6. مسح الرمز بعد الاستخدام (رمز يستخدم مرة واحدة)
+            SystemConfig.set(token_key, None)
+            
+            return True
+            
+        except (json.JSONDecodeError, ValueError) as e:
+            app.logger.error(f"خطأ في فك تشفير معلومات الرمز: {str(e)}")
+            return False
+        
+    except Exception as e:
+        app.logger.error(f"خطأ في التحقق من رمز التأكيد: {str(e)}")
+        return False
+
 def api_rate_limit(limit_string="30 per minute"):
     """
     زخرفة لتطبيق الحد من معدل الطلبات حسب مفتاح API والعنوان IP
@@ -591,9 +652,8 @@ def sanitize_input(data, allowed_fields=None, max_length=None):
 
 def require_admin_verification(f):
     """
-    زخرفة للتحقق من المستخدم للعمليات الإدارية الحساسة
-    تتطلب إرسال رمز تحقق إضافي مع الطلب من المسؤول
-    يزيد من أمان العمليات الحساسة ويمنع الوصول غير المصرح به
+    زخرفة لمطالبة المستخدم بتأكيد إضافي للعمليات الحساسة
+    يجب استخدام رأس X-Admin-Verification مع رمز تأكيد صالح
     """
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -601,33 +661,25 @@ def require_admin_verification(f):
             # 1. التحقق من أن المستخدم مسؤول
             user_id = getattr(g, 'user_id', None)
             if not user_id:
-                raise APIError('يجب تسجيل الدخول أولاً للوصول لهذه الخدمة', status_code=401)
-                
+                raise APIError("التحقق مطلوب", status_code=401)
+            
             # التحقق من صلاحيات المستخدم
             user = User.query.get(user_id)
             if not user or not user.is_admin:
                 # تسجيل محاولة وصول غير مصرح بها
                 log_audit_event(
-                    event_type="UNAUTHORIZED_ACCESS",
+                    event_type=EVENT_TYPES["UNAUTHORIZED_ACCESS"],
                     user_id=user_id,
                     details=f"محاولة وصول غير مصرح به لعملية إدارية حساسة: {request.path}",
-                    severity="CRITICAL",
+                    severity=SEVERITY_LEVELS["CRITICAL"],
                     ip_address=get_client_ip()
                 )
                 raise APIError('ليس لديك صلاحية للقيام بهذه العملية الإدارية', status_code=403)
-                
-            # 2. التحقق من توفر رمز التحقق في رأس الطلب
+            
+            # 2. الحصول على رمز التحقق من رأس الطلب
             verification_token = request.headers.get('X-Admin-Verification')
             if not verification_token:
-                raise APIError('العملية تتطلب تأكيد إضافي. يرجى توفير رمز التحقق في رأس الطلب', status_code=401)
-                
-            # 3. التحقق من صحة رمز التحقق بطريقتين
-            is_valid = False
-            
-            # 3.1 التحقق من كلمة المرور (يمكن استخدام كلمة المرور كرمز تحقق)
-            from werkzeug.security import check_password_hash
-            if user.password_hash and check_password_hash(user.password_hash, verification_token):
-                is_valid = True
+                raise APIError("رمز التحقق مطلوب للعمليات الحساسة", status_code=403)
                 
             # 3.2 التحقق من الرمز المؤقت المخزن في قاعدة البيانات
             if not is_valid:
