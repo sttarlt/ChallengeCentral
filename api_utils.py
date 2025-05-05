@@ -18,6 +18,26 @@ from models import User, APIKey, Reward, Referral, SystemConfig, APIFailedAuth, 
 from audit_log import log_audit_event, EVENT_TYPES, SEVERITY_LEVELS
 import config
 
+
+def get_client_ip():
+    """
+    الحصول على عنوان IP الحقيقي للعميل بشكل آمن
+    مع مراعاة الوسطاء والشبكات العكسية
+    
+    عودة:
+        العنوان IP الحقيقي للمستخدم
+    """
+    if 'X-Forwarded-For' in request.headers:
+        # تقسيم سلسلة العناوين واختيار أول عنصر (عنوان العميل الأصلي)
+        x_forwarded_for = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+        if x_forwarded_for:
+            # التحقق من صحة تنسيق IP (تحقق بسيط)
+            if len(x_forwarded_for) <= 45:  # الحد الأقصى لطول IPv6
+                return x_forwarded_for
+    
+    # إذا لم يكن هناك X-Forwarded-For، استخدم remote_addr
+    return request.remote_addr
+
 # إعداد التسجيل الخاص بواجهة API
 api_logger = logging.getLogger('api')
 api_logger.setLevel(logging.INFO)
@@ -116,7 +136,7 @@ def validate_api_key():
         g.api_key_permissions = valid_key.permissions
         
         # الحصول على عنوان IP الحقيقي (مع مراعاة وجود وسيط عكسي)
-        client_ip = get_real_ip()
+        client_ip = get_client_ip()
         request_user_agent = request.headers.get('User-Agent', '')
         
         # كشف الاستخدام الآلي (على سبيل المثال عبر curl أو أدوات البرمجة)
@@ -512,11 +532,11 @@ def require_admin_verification(f):
             if not is_valid:
                 # تسجيل محاولة فاشلة
                 log_audit_event(
-                    event_type=EVENT_TYPES.FAILED_VERIFICATION,
+                    event_type="FAILED_VERIFICATION",
                     user_id=user_id,
                     details=f"محاولة تحقق فاشلة لعملية حساسة - الطلب: {request.path}",
-                    severity=SEVERITY_LEVELS.HIGH,
-                    ip_address=get_client_ip()
+                    severity="ALERT",
+                    ip_address=get_client_ip() if 'get_client_ip' in globals() else request.remote_addr
                 )
                 
                 app.logger.warning(f"محاولة تحقق فاشلة لعملية حساسة: المستخدم {user_id}, الطلب: {request.path}")
@@ -524,11 +544,11 @@ def require_admin_verification(f):
                 
             # تسجيل نجاح التحقق
             log_audit_event(
-                event_type=EVENT_TYPES.ADMIN_VERIFICATION_SUCCESS,
+                event_type="ADMIN_VERIFICATION_SUCCESS",
                 user_id=user_id,
                 details=f"تحقق ناجح لعملية حساسة - الطلب: {request.path}",
-                severity=SEVERITY_LEVELS.MEDIUM,
-                ip_address=get_client_ip()
+                severity="INFO",
+                ip_address=get_client_ip() if 'get_client_ip' in globals() else request.remote_addr
             )
             
             app.logger.info(f"تحقق ناجح لعملية حساسة: المستخدم {user_id}, الطلب: {request.path}")
@@ -608,10 +628,10 @@ def generate_admin_verification_token(user_id):
         
         # تسجيل الحدث
         log_audit_event(
-            event_type=EVENT_TYPES.ADMIN_VERIFICATION,
+            event_type="ADMIN_VERIFICATION",
             user_id=user_id,
             details="تم توليد رمز تحقق جديد للمستخدم المسؤول",
-            severity=SEVERITY_LEVELS.MEDIUM
+            severity="INFO"
         )
         
         # في بيئة إنتاجية، يمكن إرسال الرمز عبر البريد الإلكتروني أو رسالة نصية
