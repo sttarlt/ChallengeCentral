@@ -1,6 +1,7 @@
 from flask import render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import desc, func, or_
+from functools import wraps
 from app import app, db
 from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message
 from forms import (
@@ -9,6 +10,21 @@ from forms import (
     CreateChatRoomForm, SendMessageForm, DirectMessageForm
 )
 from datetime import datetime
+
+# مساعد للتحقق من كون المستخدم مشرف
+def admin_required(func):
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        if not current_user.is_authenticated:
+            app.logger.debug(f"Admin access denied: User not authenticated")
+            flash('يرجى تسجيل الدخول كمشرف للوصول إلى لوحة التحكم', 'warning')
+            return redirect(url_for('admin_login'))
+        if not current_user.is_admin:
+            app.logger.debug(f"Admin access denied: User {current_user.username} is not admin")
+            flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
+            return redirect(url_for('index'))
+        return func(*args, **kwargs)
+    return decorated_view
 
 
 @app.route('/')
@@ -259,16 +275,8 @@ def admin_login():
 
 
 @app.route('/admin/dashboard')
-@login_required
+@admin_required
 def admin_dashboard():
-    # التحقق من أن المستخدم مسجل دخول ولديه صلاحيات مشرف
-    if not current_user.is_authenticated:
-        flash('يرجى تسجيل الدخول للوصول إلى لوحة التحكم', 'warning')
-        return redirect(url_for('admin_login'))
-    
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     # جمع إحصائيات للوحة التحكم
     total_users = User.query.filter_by(is_admin=False).count()
@@ -294,22 +302,16 @@ def admin_dashboard():
 
 
 @app.route('/admin/competitions', methods=['GET'])
-@login_required
+@admin_required
 def admin_competitions():
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     competitions = Competition.query.order_by(desc(Competition.created_at)).all()
     return render_template('admin/competitions.html', competitions=competitions)
 
 
 @app.route('/admin/competitions/new', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def admin_new_competition():
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     form = CompetitionForm()
     if form.validate_on_submit():
@@ -330,11 +332,8 @@ def admin_new_competition():
 
 
 @app.route('/admin/competitions/edit/<int:competition_id>', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def admin_edit_competition(competition_id):
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     competition = Competition.query.get_or_404(competition_id)
     form = CompetitionForm(obj=competition)
@@ -355,22 +354,16 @@ def admin_edit_competition(competition_id):
 
 
 @app.route('/admin/rewards', methods=['GET'])
-@login_required
+@admin_required
 def admin_rewards():
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     rewards = Reward.query.order_by(desc(Reward.created_at)).all()
     return render_template('admin/rewards.html', rewards=rewards)
 
 
 @app.route('/admin/rewards/new', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def admin_new_reward():
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     form = RewardForm()
     if form.validate_on_submit():
@@ -390,11 +383,8 @@ def admin_new_reward():
 
 
 @app.route('/admin/rewards/edit/<int:reward_id>', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def admin_edit_reward(reward_id):
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     reward = Reward.query.get_or_404(reward_id)
     form = RewardForm(obj=reward)
@@ -414,11 +404,8 @@ def admin_edit_reward(reward_id):
 
 
 @app.route('/admin/users', methods=['GET'])
-@login_required
+@admin_required
 def admin_users():
-    if not current_user.is_admin:
-        flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
-        return redirect(url_for('index'))
     
     users = User.query.filter_by(is_admin=False).order_by(desc(User.created_at)).all()
     return render_template('admin/users.html', users=users)
