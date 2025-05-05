@@ -45,18 +45,27 @@ def track_referral_ip(ip_address, request=None):
         (False, سبب_المنع) إذا كان هناك سبب لمنع الإحالة
     """
     try:
+        # تحقق من صحة المدخلات لمنع الأخطاء
+        if ip_address is None and request is None:
+            app.logger.warning("Both IP address and request object are None")
+            return True, None  # نسمح للمستخدم بالمتابعة مع التسجيل
+        
         # الحصول على عنوان IP الحقيقي إذا تم تمرير كائن request
         real_ip = get_client_ip(request) if request else ip_address
         
         if not real_ip:
             app.logger.warning("Failed to determine client IP address")
-            return False, "invalid_ip"
+            return True, None  # نسمح للمستخدم بالمتابعة مع التسجيل
         
         now = datetime.utcnow()
         time_24h_ago = now - timedelta(hours=24)
         
         # البحث عن سجل هذا الـ IP
-        ip_log = ReferralIPLog.query.filter_by(ip_address=real_ip).first()
+        try:
+            ip_log = ReferralIPLog.query.filter_by(ip_address=real_ip).first()
+        except Exception as db_error:
+            app.logger.error(f"Database error when querying IP log: {str(db_error)}")
+            return True, None  # نسمح للمستخدم بالمتابعة في حالة فشل الاستعلام
         
         if ip_log:
             # تحقق إذا كان الـ IP محظورًا مسبقًا
@@ -64,47 +73,65 @@ def track_referral_ip(ip_address, request=None):
                 return False, "ip_blocked"
             
             # تحقق من عدد الإحالات من هذا الـ IP خلال آخر 24 ساعة
-            recent_referrals = Referral.query.filter(
-                Referral.ip_address == real_ip,
-                Referral.created_at >= time_24h_ago
-            ).count()
+            try:
+                recent_referrals = Referral.query.filter(
+                    Referral.ip_address == real_ip,
+                    Referral.created_at >= time_24h_ago
+                ).count()
+            except Exception as db_error:
+                app.logger.error(f"Database error when querying recent referrals: {str(db_error)}")
+                recent_referrals = 0  # نفترض عدم وجود إحالات سابقة في حال فشل الاستعلام
             
             # إذا تجاوز الحد المسموح
             if recent_referrals >= config.REFERRAL_MAX_PER_IP_24H:
-                # حظر الـ IP إذا وصل لضعف الحد المسموح
-                if recent_referrals >= config.REFERRAL_MAX_PER_IP_24H * 2:
-                    ip_log.is_blocked = True
-                    # إنشاء إشعار للمسؤول
-                    notification = AdminNotification(
-                        title="تم حظر عنوان IP بسبب الإحالات المتكررة",
-                        message=f"تم حظر عنوان IP {real_ip} تلقائيًا بسبب تجاوزه الحد المسموح من الإحالات في 24 ساعة ({recent_referrals} إحالات).",
-                        notification_type="ip_blocked"
-                    )
-                    db.session.add(notification)
+                try:
+                    # حظر الـ IP إذا وصل لضعف الحد المسموح
+                    if recent_referrals >= config.REFERRAL_MAX_PER_IP_24H * 2:
+                        ip_log.is_blocked = True
+                        # إنشاء إشعار للمسؤول
+                        notification = AdminNotification(
+                            title="تم حظر عنوان IP بسبب الإحالات المتكررة",
+                            message=f"تم حظر عنوان IP {real_ip} تلقائيًا بسبب تجاوزه الحد المسموح من الإحالات في 24 ساعة ({recent_referrals} إحالات).",
+                            notification_type="ip_blocked"
+                        )
+                        db.session.add(notification)
                     
-                db.session.commit()
+                    db.session.commit()
+                except Exception as db_error:
+                    app.logger.error(f"Database error when blocking IP: {str(db_error)}")
+                    db.session.rollback()
+                
                 return False, "max_referrals_per_ip"
             
             # تحديث السجل
-            ip_log.referral_count += 1
-            ip_log.last_seen = now
-            db.session.commit()
+            try:
+                ip_log.referral_count += 1
+                ip_log.last_seen = now
+                db.session.commit()
+            except Exception as db_error:
+                app.logger.error(f"Database error when updating IP log: {str(db_error)}")
+                db.session.rollback()
         else:
             # إنشاء سجل جديد لهذا الـ IP
-            ip_log = ReferralIPLog(
-                ip_address=real_ip,
-                referral_count=1,
-                first_seen=now,
-                last_seen=now
-            )
-            db.session.add(ip_log)
-            db.session.commit()
+            try:
+                ip_log = ReferralIPLog(
+                    ip_address=real_ip,
+                    referral_count=1,
+                    first_seen=now,
+                    last_seen=now
+                )
+                db.session.add(ip_log)
+                db.session.commit()
+            except Exception as db_error:
+                app.logger.error(f"Database error when creating IP log: {str(db_error)}")
+                db.session.rollback()
         
         return True, None
     except Exception as e:
         app.logger.error(f"خطأ في تتبع عنوان IP: {str(e)}")
         db.session.rollback()
-        return False, "error"
+        # نسمح للمستخدم بالمتابعة في حال حدوث خطأ غير متوقع مع تسجيل الخطأ
+        return True, None
 
 
 def detect_suspicious_activity(user_id):
