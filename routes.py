@@ -225,20 +225,34 @@ def admin_login():
     
     form = LoginForm()
     if form.validate_on_submit():
+        app.logger.debug(f"Login attempt with email: {form.email.data}")
+        
         # البحث عن المستخدم بالبريد الإلكتروني
         user = User.query.filter_by(email=form.email.data).first()
         
-        # التحقق من وجود المستخدم وكلمة المرور
-        if user and user.check_password(form.password.data):
-            # التحقق من أن المستخدم هو مشرف
-            if user.is_admin:
-                login_user(user)
-                flash('تم تسجيل الدخول كمشرف بنجاح', 'success')
-                return redirect(url_for('admin_dashboard'))
+        if user:
+            app.logger.debug(f"User found: {user.username}, is_admin: {user.is_admin}")
+            
+            # التحقق من كلمة المرور
+            if user.check_password(form.password.data):
+                app.logger.debug("Password check passed")
+                
+                # التحقق من أن المستخدم هو مشرف
+                if user.is_admin:
+                    app.logger.debug("User is admin, logging in")
+                    login_user(user)
+                    app.logger.debug(f"User logged in: {current_user.username}, is_authenticated: {current_user.is_authenticated}")
+                    flash('تم تسجيل الدخول كمشرف بنجاح', 'success')
+                    return redirect(url_for('admin_dashboard'))
+                else:
+                    app.logger.debug("User is not admin")
+                    flash('ليس لديك صلاحيات كمشرف للوصول إلى لوحة التحكم', 'danger')
+                    return redirect(url_for('index'))
             else:
-                flash('ليس لديك صلاحيات كمشرف للوصول إلى لوحة التحكم', 'danger')
-                return redirect(url_for('index'))
+                app.logger.debug("Password check failed")
+                flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
         else:
+            app.logger.debug(f"No user found with email: {form.email.data}")
             flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
     
     return render_template('admin/login.html', form=form)
@@ -247,10 +261,16 @@ def admin_login():
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
+    # التحقق من أن المستخدم مسجل دخول ولديه صلاحيات مشرف
+    if not current_user.is_authenticated:
+        flash('يرجى تسجيل الدخول للوصول إلى لوحة التحكم', 'warning')
+        return redirect(url_for('admin_login'))
+    
     if not current_user.is_admin:
         flash('ليس لديك صلاحيات للوصول إلى لوحة تحكم المشرف', 'danger')
         return redirect(url_for('index'))
     
+    # جمع إحصائيات للوحة التحكم
     total_users = User.query.filter_by(is_admin=False).count()
     total_competitions = Competition.query.count()
     active_competitions = Competition.query.filter_by(is_active=True).count()
@@ -259,6 +279,9 @@ def admin_dashboard():
     recent_redemptions = RewardRedemption.query.order_by(
         desc(RewardRedemption.created_at)
     ).limit(10).all()
+    
+    # طباعة معلومات التصحيح
+    app.logger.debug(f"Admin dashboard accessed by: {current_user.username}, is_admin: {current_user.is_admin}")
     
     return render_template(
         'admin/dashboard.html',
