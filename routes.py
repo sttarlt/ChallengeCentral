@@ -145,42 +145,54 @@ def competitions():
 
 @app.route('/competitions/<int:competition_id>', methods=['GET', 'POST'])
 def competition_details(competition_id):
-    competition = Competition.query.get_or_404(competition_id)
-    
-    # Check if user already participated
-    participation = None
-    if current_user.is_authenticated:
-        participation = Participation.query.filter_by(
-            user_id=current_user.id,
-            competition_id=competition.id
-        ).first()
-    
-    form = ParticipationForm()
-    if current_user.is_authenticated and form.validate_on_submit():
-        if not participation:
-            participation = Participation(
+    try:
+        competition = Competition.query.get(competition_id)
+        if not competition:
+            flash('لم يتم العثور على المسابقة المطلوبة', 'warning')
+            return redirect(url_for('competitions'))
+        
+        # Check if user already participated
+        participation = None
+        if current_user.is_authenticated:
+            participation = Participation.query.filter_by(
                 user_id=current_user.id,
                 competition_id=competition.id
-            )
-            db.session.add(participation)
-            db.session.commit()
-            flash('تمت المشاركة في المسابقة بنجاح', 'success')
-            return redirect(url_for('competition_details', competition_id=competition.id))
-        else:
-            flash('أنت مشارك بالفعل في هذه المسابقة', 'info')
-    
-    # Get top participants
-    top_participants = Participation.query.filter_by(
-        competition_id=competition.id
-    ).order_by(desc(Participation.score)).limit(10).all()
-    
-    return render_template(
-        'competition_details.html',
-        competition=competition,
-        participation=participation,
-        form=form,
-        top_participants=top_participants
-    )
+            ).first()
+        
+        form = ParticipationForm()
+        if current_user.is_authenticated and form.validate_on_submit():
+            if not participation:
+                participation = Participation(
+                    user_id=current_user.id,
+                    competition_id=competition.id
+                )
+                db.session.add(participation)
+                db.session.commit()
+                flash('تمت المشاركة في المسابقة بنجاح', 'success')
+                return redirect(url_for('competition_details', competition_id=competition.id))
+            else:
+                flash('أنت مشارك بالفعل في هذه المسابقة', 'info')
+        
+        # Get top participants
+        top_participants = Participation.query.filter_by(
+            competition_id=competition.id
+        ).order_by(desc(Participation.score)).limit(10).all()
+        
+        # Get current date for template comparisons
+        now = datetime.utcnow()
+        
+        return render_template(
+            'competition_details.html',
+            competition=competition,
+            participation=participation,
+            form=form,
+            top_participants=top_participants,
+            now=now  # Pass current date to template
+        )
+    except Exception as e:
+        app.logger.error(f"Error in competition_details: {str(e)}")
+        flash('حدث خطأ أثناء محاولة عرض تفاصيل المسابقة', 'danger')
+        return redirect(url_for('competitions'))
 
 
 @app.route('/rewards')
