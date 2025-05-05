@@ -31,7 +31,7 @@ class RegistrationForm(FlaskForm):
 class CompetitionForm(FlaskForm):
     title = StringField('عنوان المسابقة', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('وصف المسابقة', validators=[DataRequired()])
-    points = IntegerField('النقاط', validators=[DataRequired()])
+    points = IntegerField('الكربتو', validators=[DataRequired()])
     start_date = DateTimeField('تاريخ البدء', format='%Y-%m-%dT%H:%M', validators=[DataRequired()])
     end_date = DateTimeField('تاريخ الانتهاء', format='%Y-%m-%dT%H:%M', validators=[DataRequired()])
     is_active = BooleanField('نشط')
@@ -41,7 +41,7 @@ class CompetitionForm(FlaskForm):
 class RewardForm(FlaskForm):
     name = StringField('اسم الجائزة', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('وصف الجائزة', validators=[DataRequired()])
-    points_required = IntegerField('النقاط المطلوبة', validators=[DataRequired()])
+    points_required = IntegerField('الكربتو المطلوبة', validators=[DataRequired()])
     quantity = IntegerField('الكمية', validators=[DataRequired()])
     is_available = BooleanField('متاح')
     submit = SubmitField('حفظ الجائزة')
@@ -85,7 +85,7 @@ class DirectMessageForm(FlaskForm):
 class PointsPackageForm(FlaskForm):
     name = StringField('اسم الباقة', validators=[DataRequired(), Length(max=50)])
     price = FloatField('السعر (دولار)', validators=[DataRequired(), NumberRange(min=0.1)])
-    points = IntegerField('النقاط', validators=[DataRequired(), NumberRange(min=1)])
+    points = IntegerField('الكربتو', validators=[DataRequired(), NumberRange(min=1)])
     description = StringField('وصف مختصر', validators=[Length(max=255)])
     is_active = BooleanField('نشط')
     display_order = IntegerField('ترتيب العرض', validators=[DataRequired()], default=0)
