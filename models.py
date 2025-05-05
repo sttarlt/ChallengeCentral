@@ -101,7 +101,7 @@ class User(UserMixin, db.Model):
             return False
         return check_password_hash(self.password_hash, password)
     
-    def add_points(self, points, transaction_type, related_id=None, description=None, created_by_id=None, request=None):
+    def add_points(self, points, transaction_type, related_id=None, description=None, created_by_id=None, request=None, from_admin=False):
         """
         إضافة نقاط للمستخدم مع تسجيل العملية
         
@@ -112,11 +112,43 @@ class User(UserMixin, db.Model):
             description (str): وصف مختصر للعملية
             created_by_id (int): معرف المستخدم الذي أنشأ العملية (المستخدم نفسه أو المشرف)
             request (Flask.request): كائن الطلب للحصول على معلومات مثل IP و User-Agent
+            from_admin (bool): إذا كانت True، سيتم خصم النقاط من حساب المشرف المركزي
         """
         if points <= 0:
             return False
             
         try:
+            # إذا كان الطلب لخصم النقاط من حساب المشرف المركزي
+            if from_admin and not self.is_admin:
+                # الحصول على حساب المشرف
+                admin = User.query.filter_by(is_admin=True).first()
+                if not admin:
+                    app.logger.error("لا يوجد حساب مشرف مركزي لخصم النقاط منه")
+                    return False
+                
+                # التحقق من وجود نقاط كافية في حساب المشرف
+                if admin.points < points:
+                    app.logger.error(f"لا توجد نقاط كافية في حساب المشرف. المتوفر: {admin.points}, المطلوب: {points}")
+                    return False
+                
+                # خصم النقاط من حساب المشرف
+                admin.points -= points
+                admin_transaction = PointsTransaction(
+                    user_id=admin.id,
+                    amount=-points,
+                    balance_after=admin.points,
+                    transaction_type=f"admin_deduction_{transaction_type}",
+                    related_id=related_id,
+                    description=f"خصم {points} كربتو من حساب المشرف لـ {description}",
+                    created_by_id=created_by_id or self.id
+                )
+                
+                if request:
+                    admin_transaction.ip_address = self.get_client_ip(request)
+                    admin_transaction.user_agent = request.user_agent.string
+                
+                db.session.add(admin_transaction)
+            
             # إضافة النقاط للمستخدم
             self.points += points
             
@@ -142,6 +174,78 @@ class User(UserMixin, db.Model):
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"خطأ في إضافة النقاط: {str(e)}")
+            return False
+            
+    @classmethod
+    def transfer_points(cls, from_user_id, to_user_id, points, transaction_type, description=None, created_by_id=None, request=None):
+        """
+        تحويل نقاط من مستخدم إلى آخر
+        
+        Args:
+            from_user_id (int): معرف المستخدم المرسل
+            to_user_id (int): معرف المستخدم المستقبل
+            points (int): عدد النقاط المراد تحويلها
+            transaction_type (str): نوع العملية (تحويل، مكافأة، إلخ)
+            description (str): وصف مختصر للعملية
+            created_by_id (int): معرف المستخدم الذي أنشأ العملية
+            request (Flask.request): كائن الطلب للحصول على معلومات مثل IP و User-Agent
+            
+        Returns:
+            bool: نجاح العملية أو فشلها
+        """
+        if points <= 0:
+            return False
+            
+        # الحصول على المستخدمين
+        from_user = cls.query.get(from_user_id)
+        to_user = cls.query.get(to_user_id)
+        
+        if not from_user or not to_user:
+            return False
+            
+        # التحقق من وجود نقاط كافية
+        if from_user.points < points:
+            return False
+            
+        try:
+            # خصم النقاط من المرسل
+            from_user.points -= points
+            from_transaction = PointsTransaction(
+                user_id=from_user.id,
+                amount=-points,
+                balance_after=from_user.points,
+                transaction_type=f"transfer_out_{transaction_type}",
+                related_id=to_user.id,
+                description=description or f"تحويل {points} كربتو إلى {to_user.username}",
+                created_by_id=created_by_id or from_user.id
+            )
+            
+            # إضافة النقاط للمستقبل
+            to_user.points += points
+            to_transaction = PointsTransaction(
+                user_id=to_user.id,
+                amount=points,
+                balance_after=to_user.points,
+                transaction_type=f"transfer_in_{transaction_type}",
+                related_id=from_user.id,
+                description=description or f"استلام {points} كربتو من {from_user.username}",
+                created_by_id=created_by_id or from_user.id
+            )
+            
+            # إضافة معلومات الطلب إذا كانت متوفرة
+            if request:
+                from_transaction.ip_address = from_user.get_client_ip(request) if hasattr(from_user, 'get_client_ip') else request.remote_addr
+                from_transaction.user_agent = request.user_agent.string
+                to_transaction.ip_address = from_transaction.ip_address
+                to_transaction.user_agent = from_transaction.user_agent
+            
+            db.session.add(from_transaction)
+            db.session.add(to_transaction)
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"خطأ في تحويل النقاط: {str(e)}")
             return False
     
     def get_client_ip(self, request):

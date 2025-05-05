@@ -123,18 +123,27 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        # منح المكافأة الترحيبية للمستخدم الجديد (تُمنح لجميع المستخدمين الجدد)
+        # منح المكافأة الترحيبية للمستخدم الجديد من حساب المشرف المركزي
         welcome_bonus = config.REFERRAL_WELCOME_BONUS
         if welcome_bonus > 0:
-            success = user.add_points(
-                points=welcome_bonus,
-                transaction_type='welcome_bonus',
-                description=f'مكافأة ترحيبية للمستخدم الجديد - {welcome_bonus} كربتو',
-                created_by_id=user.id,
-                request=request
-            )
-            if success:
-                flash(f'تهانينا! لقد حصلت على {welcome_bonus} كربتو كمكافأة ترحيبية', 'success')
+            # الحصول على المشرف المركزي
+            admin = User.query.filter_by(is_admin=True).first()
+            
+            if admin and admin.points >= welcome_bonus:
+                # إضافة النقاط من حساب المشرف المركزي
+                success = user.add_points(
+                    points=welcome_bonus,
+                    transaction_type='welcome_bonus',
+                    description=f'مكافأة ترحيبية للمستخدم الجديد - {welcome_bonus} كربتو',
+                    created_by_id=admin.id,
+                    request=request,
+                    from_admin=True
+                )
+                if success:
+                    flash(f'تهانينا! لقد حصلت على {welcome_bonus} كربتو كمكافأة ترحيبية', 'success')
+            else:
+                # في حالة عدم وجود حساب مشرف أو عدم وجود نقاط كافية، نسجل هذا في السجلات
+                app.logger.warning(f"لم تتم إضافة المكافأة الترحيبية ({welcome_bonus} كربتو) للمستخدم {user.username} - لا توجد نقاط كافية في حساب المشرف")
         
         # إذا كان المستخدم قد سجل عبر رابط إحالة، نقوم بربطه بالمستخدم الذي قام بالإحالة
         if referrer:
