@@ -49,3 +49,26 @@ REFERRAL_REQUIRE_COMPETITION_PARTICIPATION = True
 
 # المدة بالأيام التي يجب أن تحدث فيها المشاركة بعد التسجيل حتى تعتبر الإحالة صالحة
 REFERRAL_VERIFICATION_DAYS = 7
+
+# ==========================================
+# إعدادات واجهة برمجة التطبيقات API
+# ==========================================
+
+# المجالات المسموح لها باستخدام API (CORS)
+API_ALLOWED_ORIGINS = ['https://musabaqati.com', 'https://app.musabaqati.com']
+
+# المدة الافتراضية لصلاحية مفاتيح API بالأيام (لا تنتهي إذا كانت القيمة None)
+API_DEFAULT_KEY_EXPIRY_DAYS = 365
+
+# الحد الأقصى لعدد مفاتيح API المسموح بها لكل مستخدم
+API_MAX_KEYS_PER_USER = 5
+
+# تسجيل طلبات API
+API_ENABLE_LOGGING = True
+
+# الصلاحيات المتاحة لمفاتيح API
+API_PERMISSIONS = {
+    'read': 'صلاحيات القراءة فقط',
+    'write': 'صلاحيات القراءة والكتابة',
+    'admin': 'صلاحيات كاملة (للمشرفين فقط)'
+}

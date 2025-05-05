@@ -1,0 +1,196 @@
+{% extends 'layout.html' %}
+
+{% block title %}إدارة مفاتيح API - منصة مسابقاتي{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="mb-4">إدارة مفاتيح واجهة برمجة التطبيقات (API)</h1>
+            
+            <div class="alert alert-info">
+                <h5>ما هي مفاتيح API؟</h5>
+                <p>
+                    مفاتيح API هي رموز أمان تستخدم للتحقق من هويتك عند إرسال طلبات برمجية لاستخدام خدمات منصة مسابقاتي.
+                    يمكنك استخدام هذه المفاتيح في تطبيقاتك الخاصة للوصول إلى بياناتك بشكل آمن.
+                </p>
+            </div>
+            
+            {% if new_key %}
+            <div class="alert alert-success">
+                <h5>تم إنشاء مفتاح API جديد بنجاح!</h5>
+                <p><strong>المفتاح الخاص بك: </strong> <code id="api-key-value">{{ new_key.key }}</code> 
+                    <button class="btn btn-sm btn-outline-secondary" onclick="copyApiKey()">نسخ</button>
+                </p>
+                <p class="text-danger">
+                    <strong>هام:</strong> هذا المفتاح سيظهر مرة واحدة فقط. يرجى نسخه والاحتفاظ به في مكان آمن.
+                </p>
+            </div>
+            {% endif %}
+            
+            <!-- قائمة المفاتيح الحالية -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">مفاتيح API الخاصة بك</h5>
+                </div>
+                <div class="card-body">
+                    {% if api_keys %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>الاسم</th>
+                                    <th>المفتاح (مخفي جزئياً)</th>
+                                    <th>الصلاحيات</th>
+                                    <th>تاريخ الإنشاء</th>
+                                    <th>تاريخ الانتهاء</th>
+                                    <th>عدد الاستخدامات</th>
+                                    <th>الحالة</th>
+                                    <th>إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key in api_keys %}
+                                <tr>
+                                    <td>{{ key.name or 'بدون اسم' }}</td>
+                                    <td><code>{{ key.key[:8] }}...{{ key.key[-4:] }}</code></td>
+                                    <td>
+                                        {% if key.permissions == 'read' %}
+                                            <span class="badge bg-success">قراءة فقط</span>
+                                        {% elif key.permissions == 'write' %}
+                                            <span class="badge bg-warning">قراءة وكتابة</span>
+                                        {% elif key.permissions == 'admin' %}
+                                            <span class="badge bg-danger">كامل (مشرف)</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ key.created_at.strftime('%Y-%m-%d') }}</td>
+                                    <td>
+                                        {% if key.expires_at %}
+                                            {{ key.expires_at.strftime('%Y-%m-%d') }}
+                                        {% else %}
+                                            <span class="text-muted">لا ينتهي</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ key.usage_count }}</td>
+                                    <td>
+                                        {% if key.is_active %}
+                                            <span class="badge bg-success">نشط</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">غير نشط</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if key.is_active %}
+                                        <form method="post" action="{{ url_for('deactivate_api_key', key_id=key.id) }}" style="display: inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('هل أنت متأكد من إلغاء تنشيط هذا المفتاح؟')">
+                                                إلغاء التنشيط
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        لا توجد مفاتيح API حالياً. يمكنك إنشاء مفتاح جديد باستخدام النموذج أدناه.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- نموذج إنشاء مفتاح جديد -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">إنشاء مفتاح API جديد</h5>
+                </div>
+                <div class="card-body">
+                    {% if api_keys|length >= max_keys_per_user %}
+                    <div class="alert alert-warning">
+                        لقد وصلت للحد الأقصى من مفاتيح API المسموح بها ({{ max_keys_per_user }}). يرجى إلغاء تنشيط بعض المفاتيح القديمة قبل إنشاء مفاتيح جديدة.
+                    </div>
+                    {% else %}
+                    <form method="post" action="{{ url_for('create_api_key') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label for="key_name" class="form-label">اسم المفتاح <small class="text-muted">(اختياري - للتمييز بين المفاتيح)</small></label>
+                            <input type="text" class="form-control" id="key_name" name="key_name" placeholder="مثال: تطبيق الجوال، موقع الويب، إلخ">
+                        </div>
+                        <div class="mb-3">
+                            <label for="permissions" class="form-label">الصلاحيات</label>
+                            <select class="form-select" id="permissions" name="permissions">
+                                <option value="read" selected>قراءة فقط</option>
+                                <option value="write">قراءة وكتابة</option>
+                                {% if current_user.is_admin %}
+                                <option value="admin">صلاحيات كاملة (للمشرفين فقط)</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="expires_days" class="form-label">مدة الصلاحية</label>
+                            <select class="form-select" id="expires_days" name="expires_days">
+                                <option value="30">30 يوم</option>
+                                <option value="90">90 يوم</option>
+                                <option value="180">180 يوم</option>
+                                <option value="365" selected>سنة</option>
+                                <option value="">لا ينتهي</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success">إنشاء مفتاح جديد</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- معلومات حول استخدام API -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">كيفية استخدام API</h5>
+                </div>
+                <div class="card-body">
+                    <h6>1. التحقق باستخدام المفتاح</h6>
+                    <p>يجب عليك إرسال المفتاح في رأس كل طلب HTTP باستخدام رأس <code>Authorization</code>:</p>
+                    <pre class="bg-light p-3 rounded"><code>Authorization: Bearer YOUR_API_KEY</code></pre>
+                    
+                    <h6>2. عنوان الـ API الأساسي</h6>
+                    <p>جميع طلبات API يجب أن ترسل إلى:</p>
+                    <pre class="bg-light p-3 rounded"><code>{{ request.host_url }}api/v1/</code></pre>
+                    
+                    <h6>3. نقاط النهاية المتاحة</h6>
+                    <ul>
+                        <li><code>GET /api/v1/user/info</code> - معلومات المستخدم الأساسية</li>
+                        <li><code>GET /api/v1/user/points</code> - رصيد النقاط الحالي</li>
+                        <li><code>GET /api/v1/user/transactions</code> - سجل المعاملات</li>
+                        <li><code>GET /api/v1/referrals</code> - قائمة الإحالات</li>
+                        <li><code>GET /api/v1/rewards</code> - المكافآت المتاحة</li>
+                    </ul>
+                    
+                    <h6>4. توثيق كامل</h6>
+                    <p>للاطلاع على توثيق API الكامل والأمثلة، قم بزيارة:</p>
+                    <p><a href="{{ url_for('api_docs') }}" target="_blank" class="btn btn-outline-primary">توثيق API</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function copyApiKey() {
+        const keyElement = document.getElementById('api-key-value');
+        const textArea = document.createElement('textarea');
+        textArea.value = keyElement.textContent;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        // إظهار تأكيد النسخ
+        alert('تم نسخ المفتاح إلى الحافظة');
+    }
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import desc, func, or_
 from functools import wraps
 from app import app, db, limiter
-from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral, ReferralIPLog, AdminNotification
+from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral, ReferralIPLog, AdminNotification, APIKey
 import config
 import referral_security
 from audit_log import log_audit_event, monitor_login_attempts, log_sensitive_action, EVENT_TYPES, SEVERITY_LEVELS
@@ -201,6 +201,121 @@ def logout():
     logout_user()
     flash('تم تسجيل الخروج بنجاح', 'success')
     return redirect(url_for('index'))
+
+
+@app.route('/api-keys', methods=['GET'])
+@login_required
+def api_keys():
+    """إدارة مفاتيح API للمستخدم"""
+    # الحصول على المفاتيح النشطة للمستخدم الحالي
+    active_keys = APIKey.query.filter_by(
+        user_id=current_user.id
+    ).order_by(APIKey.created_at.desc()).all()
+    
+    # الحصول على الحد الأقصى لعدد المفاتيح من الإعدادات
+    max_keys = getattr(config, 'API_MAX_KEYS_PER_USER', 5)
+    
+    # التحقق من وجود مفتاح جديد في الجلسة (إذا تم إنشاؤه للتو)
+    new_key = None
+    if 'new_api_key_id' in session:
+        new_key = APIKey.query.get(session.pop('new_api_key_id'))
+    
+    return render_template(
+        'api_keys.html',
+        api_keys=active_keys,
+        max_keys_per_user=max_keys,
+        new_key=new_key
+    )
+
+
+@app.route('/api-keys/create', methods=['POST'])
+@login_required
+@limiter.limit("5 per hour")
+def create_api_key():
+    """إنشاء مفتاح API جديد"""
+    # التحقق من عدد المفاتيح الحالية
+    current_keys_count = APIKey.query.filter_by(
+        user_id=current_user.id, 
+        is_active=True
+    ).count()
+    
+    max_keys = getattr(config, 'API_MAX_KEYS_PER_USER', 5)
+    
+    if current_keys_count >= max_keys:
+        flash('لقد وصلت للحد الأقصى من مفاتيح API المسموح بها', 'warning')
+        return redirect(url_for('api_keys'))
+    
+    # الحصول على البيانات من النموذج
+    key_name = request.form.get('key_name')
+    permissions = request.form.get('permissions', 'read')
+    expires_days_str = request.form.get('expires_days')
+    
+    # تحويل مدة الصلاحية إلى عدد صحيح
+    expires_days = None
+    if expires_days_str:
+        try:
+            expires_days = int(expires_days_str)
+        except ValueError:
+            pass
+    
+    # التحقق من الصلاحيات (فقط المشرفين يمكنهم إنشاء مفاتيح بصلاحيات المشرف)
+    if permissions == 'admin' and not current_user.is_admin:
+        permissions = 'read'
+    
+    # إنشاء المفتاح الجديد
+    new_key = APIKey.generate_key(
+        user_id=current_user.id,
+        name=key_name,
+        permissions=permissions,
+        expires_days=expires_days
+    )
+    
+    if new_key:
+        # تخزين معرف المفتاح الجديد في الجلسة لعرضه مرة واحدة
+        session['new_api_key_id'] = new_key.id
+        flash('تم إنشاء مفتاح API جديد بنجاح', 'success')
+        
+        # تسجيل الحدث
+        log_audit_event(
+            event_type=EVENT_TYPES['SECURITY'],
+            severity=SEVERITY_LEVELS['INFO'],
+            details=f"إنشاء مفتاح API جديد بصلاحيات: {permissions}",
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=request.remote_addr
+        )
+    else:
+        flash('حدث خطأ أثناء إنشاء المفتاح', 'danger')
+    
+    return redirect(url_for('api_keys'))
+
+
+@app.route('/api-keys/<int:key_id>/deactivate', methods=['POST'])
+@login_required
+def deactivate_api_key(key_id):
+    """إلغاء تنشيط مفتاح API"""
+    # البحث عن المفتاح والتأكد من ملكية المستخدم له
+    api_key = APIKey.query.filter_by(
+        id=key_id, 
+        user_id=current_user.id
+    ).first_or_404()
+    
+    # إلغاء تنشيط المفتاح
+    api_key.is_active = False
+    db.session.commit()
+    
+    # تسجيل الحدث
+    log_audit_event(
+        event_type=EVENT_TYPES['SECURITY'],
+        severity=SEVERITY_LEVELS['INFO'],
+        details=f"إلغاء تنشيط مفتاح API رقم: {api_key.id}",
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request.remote_addr
+    )
+    
+    flash('تم إلغاء تنشيط المفتاح بنجاح', 'success')
+    return redirect(url_for('api_keys'))
 
 
 @app.route('/admin/referrals')
