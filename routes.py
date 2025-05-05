@@ -33,18 +33,30 @@ def admin_required(func):
     return decorated_view
 
 
+@app.route('/health')
+def health_check():
+    """Simple health check endpoint to verify the app is responding"""
+    return jsonify({"status": "ok", "message": "Flask application is running"}), 200
+
 @app.route('/')
 def index():
-    active_competitions = Competition.query.filter(
-        Competition.is_active == True,
-        Competition.end_date >= datetime.utcnow()
-    ).order_by(Competition.start_date).limit(4).all()
-    
-    popular_rewards = Reward.query.filter_by(is_available=True).order_by(
-        Reward.points_required
-    ).limit(4).all()
-    
-    top_users = User.query.order_by(User.points.desc()).limit(5).all()
+    try:
+        active_competitions = Competition.query.filter(
+            Competition.is_active == True,
+            Competition.end_date >= datetime.utcnow()
+        ).order_by(Competition.start_date).limit(4).all()
+        
+        popular_rewards = Reward.query.filter_by(is_available=True).order_by(
+            Reward.points_required
+        ).limit(4).all()
+        
+        top_users = User.query.order_by(User.points.desc()).limit(5).all()
+    except Exception as e:
+        app.logger.error(f"Error loading index page: {str(e)}")
+        # Return a simplified version if database queries fail
+        active_competitions = []
+        popular_rewards = []
+        top_users = []
     
     return render_template(
         'index.html',
