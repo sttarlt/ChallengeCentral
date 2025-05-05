@@ -425,17 +425,25 @@ def admin_edit_reward(reward_id):
 @app.route('/admin/points-packages', methods=['GET'])
 @admin_required
 def admin_points_packages():
-    """إدارة باقات النقاط"""
+    """إدارة باقات الكربتو"""
     packages = PointsPackage.query.order_by(PointsPackage.display_order).all()
     contact_link = config.CONTACT_LINK
-    return render_template('admin/points_packages.html', packages=packages, contact_link=contact_link)
+    currency_name = config.CURRENCY_NAME
+    currency_name_plural = config.CURRENCY_NAME_PLURAL
+    return render_template('admin/points_packages.html', 
+                          packages=packages, 
+                          contact_link=contact_link,
+                          currency_name=currency_name,
+                          currency_name_plural=currency_name_plural)
 
 
 @app.route('/admin/points-packages/new', methods=['GET', 'POST'])
 @admin_required
 def admin_new_points_package():
-    """إضافة باقة نقاط جديدة"""
+    """إضافة باقة كربتو جديدة"""
     form = PointsPackageForm()
+    currency_name = config.CURRENCY_NAME
+    currency_name_plural = config.CURRENCY_NAME_PLURAL
     
     if form.validate_on_submit():
         package = PointsPackage(
@@ -448,18 +456,23 @@ def admin_new_points_package():
         )
         db.session.add(package)
         db.session.commit()
-        flash('تم إضافة باقة النقاط بنجاح', 'success')
+        flash(f'تم إضافة باقة ال{currency_name} بنجاح', 'success')
         return redirect(url_for('admin_points_packages'))
     
-    return render_template('admin/points_packages.html', form=form)
+    return render_template('admin/points_packages.html', 
+                          form=form, 
+                          currency_name=currency_name, 
+                          currency_name_plural=currency_name_plural)
 
 
 @app.route('/admin/points-packages/edit/<int:package_id>', methods=['GET', 'POST'])
 @admin_required
 def admin_edit_points_package(package_id):
-    """تعديل باقة نقاط"""
+    """تعديل باقة كربتو"""
     package = PointsPackage.query.get_or_404(package_id)
     form = PointsPackageForm(obj=package)
+    currency_name = config.CURRENCY_NAME
+    currency_name_plural = config.CURRENCY_NAME_PLURAL
     
     if form.validate_on_submit():
         package.name = form.name.data
@@ -470,10 +483,14 @@ def admin_edit_points_package(package_id):
         package.display_order = form.display_order.data
         
         db.session.commit()
-        flash('تم تحديث باقة النقاط بنجاح', 'success')
+        flash(f'تم تحديث باقة ال{currency_name} بنجاح', 'success')
         return redirect(url_for('admin_points_packages'))
     
-    return render_template('admin/points_packages.html', form=form, package=package)
+    return render_template('admin/points_packages.html', 
+                          form=form, 
+                          package=package,
+                          currency_name=currency_name,
+                          currency_name_plural=currency_name_plural)
 
 
 @app.route('/admin/config', methods=['GET', 'POST'])
