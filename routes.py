@@ -3,8 +3,9 @@ from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import desc, func, or_
 from functools import wraps
 from app import app, db
-from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral
+from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral, ReferralIPLog, AdminNotification
 import config
+import referral_security
 from forms import (
     LoginForm, RegistrationForm, CompetitionForm, RewardForm,
     ParticipationForm, RedeemRewardForm, RedemptionStatusForm,
