@@ -1,0 +1,69 @@
+{% extends "admin/dashboard.html" %}
+
+{% block admin_title %}إعدادات النظام{% endblock %}
+
+{% block admin_content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">إعدادات النظام</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="mb-4">
+                <h6 class="mb-3">إعدادات التواصل</h6>
+                <div class="mb-3">
+                    <label for="contact_link" class="form-label">رابط التواصل للشراء</label>
+                    <input type="url" class="form-control" id="contact_link" name="contact_link" value="{{ contact_link }}" required>
+                    <div class="form-text">هذا الرابط سيظهر في صفحة باقات النقاط للتواصل المباشر للشراء (يمكن استخدام روابط واتساب، تلغرام، إلخ)</div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-end">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary me-2">إلغاء</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> حفظ الإعدادات
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">نماذج روابط التواصل</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <p class="mb-1"><strong>رابط واتساب:</strong> <code>https://wa.me/رقم_الهاتف</code></p>
+            <p class="mb-1"><strong>رابط تلغرام:</strong> <code>https://t.me/اسم_المستخدم</code></p>
+            <p class="mb-1"><strong>رابط فيسبوك ماسنجر:</strong> <code>https://m.me/اسم_المستخدم_أو_المعرف</code></p>
+            <p class="mb-0"><strong>بريد إلكتروني:</strong> <code>mailto:عنوان_البريد_الإلكتروني</code></p>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">دليل تعديل باقات النقاط</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-light border">
+            <h6 class="mb-3">طريقة التعديل:</h6>
+            <ol>
+                <li>انتقل إلى صفحة <a href="{{ url_for('admin_points_packages') }}">إدارة باقات النقاط</a></li>
+                <li>اضغط على زر <strong>إضافة باقة جديدة</strong> لإضافة باقة جديدة</li>
+                <li>اضغط على زر <strong>تعديل</strong> بجانب الباقة لتعديل الباقة الموجودة</li>
+                <li>يمكنك تغيير ترتيب الباقات بتعديل رقم "ترتيب العرض" (الأرقام الأصغر تظهر أولاً)</li>
+                <li>يمكنك إخفاء باقة مؤقتاً بإلغاء تفعيل خيار "نشط"</li>
+            </ol>
+            
+            <h6 class="mb-3 mt-4">ملاحظات مهمة:</h6>
+            <ul>
+                <li>يتم استخدام <strong>ترتيب العرض</strong> لتحديد ترتيب ظهور الباقات في صفحة باقات النقاط.</li>
+                <li>الباقات النشطة فقط هي التي ستظهر للمستخدمين في صفحة باقات النقاط.</li>
+                <li>عند تغيير رابط التواصل، سيتم تحديثه تلقائياً في جميع أنحاء الموقع.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

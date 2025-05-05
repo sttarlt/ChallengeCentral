@@ -1,0 +1,131 @@
+{% extends "layout.html" %}
+
+{% block title %}شراء النقاط - مسابقاتي{% endblock %}
+
+{% block css %}
+<style>
+    .pricing-card {
+        border-radius: 15px;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transition: transform 0.3s ease-in-out;
+        overflow: hidden;
+    }
+    
+    .pricing-card:hover {
+        transform: translateY(-10px);
+    }
+    
+    .pricing-header {
+        padding: 2rem 0;
+        color: white;
+    }
+    
+    .basic-package {
+        background: linear-gradient(45deg, #3a7bd5, #00d2ff);
+    }
+    
+    .standard-package {
+        background: linear-gradient(45deg, #f953c6, #b91d73);
+    }
+    
+    .premium-package {
+        background: linear-gradient(45deg, #FF8008, #FFC837);
+    }
+    
+    .pricing-price {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    
+    .pricing-points {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #ffc107;
+    }
+    
+    .pricing-body {
+        padding: 1.5rem;
+    }
+    
+    .contact-info {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-bold">باقات النقاط</h1>
+            <p class="fs-5 text-muted">اختر الباقة المناسبة لك وابدأ في جني المكافآت</p>
+        </div>
+        
+        <div class="row justify-content-center">
+            {% if packages %}
+                {% for package in packages %}
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="pricing-card h-100">
+                            <div class="pricing-header {{ 'basic-package' if loop.index == 1 else 'standard-package' if loop.index == 2 else 'premium-package' }} text-center">
+                                <h3 class="fw-bold">{{ package.name }}</h3>
+                                <div class="pricing-price">${{ package.price }}</div>
+                            </div>
+                            <div class="pricing-body text-center">
+                                <div class="mb-4">
+                                    <div class="pricing-points">
+                                        <i class="fas fa-coins me-2"></i>{{ package.points }} نقطة
+                                    </div>
+                                    {% if package.description %}
+                                        <p class="mb-0 mt-2 text-muted">{{ package.description }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="d-grid">
+                                    <a href="{{ contact_link }}" class="btn btn-primary btn-lg" target="_blank">
+                                        <i class="fas fa-shopping-cart me-2"></i>تواصل للشراء
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-md-8 text-center">
+                    <div class="alert alert-info">
+                        <h4><i class="fas fa-info-circle me-2"></i>لا توجد باقات متاحة حالياً</h4>
+                        <p>يرجى العودة لاحقاً للاطلاع على باقات النقاط الجديدة</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="contact-info mt-5">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h3 class="mb-3"><i class="fas fa-info-circle me-2"></i>كيفية الشراء</h3>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item border-0 bg-transparent">1. اختر الباقة المناسبة لك</li>
+                        <li class="list-group-item border-0 bg-transparent">2. اضغط على زر "تواصل للشراء"</li>
+                        <li class="list-group-item border-0 bg-transparent">3. سيتم تحويلك إلى صفحة التواصل المباشر مع المشرف</li>
+                        <li class="list-group-item border-0 bg-transparent">4. اذكر رقم الباقة واسم المستخدم الخاص بك</li>
+                        <li class="list-group-item border-0 bg-transparent">5. سيتم إضافة النقاط إلى حسابك بعد إتمام عملية الدفع</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center py-4">
+                            <h4 class="card-title mb-4"><i class="fas fa-headset me-2"></i>تحتاج إلى مساعدة؟</h4>
+                            <p class="card-text fs-5">يمكنك التواصل مع فريق الدعم للمساعدة في شراء النقاط أو للإجابة عن أي استفسارات</p>
+                            <a href="{{ contact_link }}" class="btn btn-light btn-lg mt-3" target="_blank">
+                                <i class="fas fa-comment-dots me-2"></i>تواصل معنا
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

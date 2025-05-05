@@ -1,16 +1,58 @@
 {% extends "layout.html" %}
 
-{% block title %}لوحة تحكم المشرف - مسابقاتي{% endblock %}
+{% block title %}{% block admin_title %}لوحة تحكم المشرف{% endblock %} - مسابقاتي{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>لوحة تحكم المشرف</h1>
+    <h1>{% block admin_heading %}لوحة تحكم المشرف{% endblock %}</h1>
     <div>
         <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
             <i class="fas fa-home me-1"></i> العودة للموقع
         </a>
     </div>
 </div>
+
+{% block admin_nav %}
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_dashboard' else '' }}" href="{{ url_for('admin_dashboard') }}">
+            <i class="fas fa-tachometer-alt me-1"></i> الرئيسية
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_competitions' or request.endpoint == 'admin_new_competition' or request.endpoint == 'admin_edit_competition' else '' }}" href="{{ url_for('admin_competitions') }}">
+            <i class="fas fa-trophy me-1"></i> المسابقات
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_rewards' or request.endpoint == 'admin_new_reward' or request.endpoint == 'admin_edit_reward' else '' }}" href="{{ url_for('admin_rewards') }}">
+            <i class="fas fa-gift me-1"></i> الجوائز
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_points_packages' or request.endpoint == 'admin_new_points_package' or request.endpoint == 'admin_edit_points_package' else '' }}" href="{{ url_for('admin_points_packages') }}">
+            <i class="fas fa-coins me-1"></i> باقات النقاط
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_redemptions' or request.endpoint == 'admin_update_redemption' else '' }}" href="{{ url_for('admin_redemptions') }}">
+            <i class="fas fa-exchange-alt me-1"></i> طلبات الاستبدال
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_users' else '' }}" href="{{ url_for('admin_users') }}">
+            <i class="fas fa-users me-1"></i> المستخدمين
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_config' else '' }}" href="{{ url_for('admin_config') }}">
+            <i class="fas fa-cog me-1"></i> الإعدادات
+        </a>
+    </li>
+</ul>
+{% endblock %}
+
+{% block admin_content %}
 
 <div class="row mb-4">
     <div class="col-lg-3 col-md-6 mb-4">
@@ -187,4 +229,5 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock admin_content %}
+{% endblock content %}
