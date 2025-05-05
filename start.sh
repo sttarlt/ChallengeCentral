@@ -8,6 +8,9 @@ REPORT_DIR="test_reports"
 # Ensure directories exist
 mkdir -p "$LOG_DIR" "$REPORT_DIR"
 
+# Mark explicitly as Replit environment (even if REPL_ID is not set)
+export REPLIT_ENVIRONMENT=true
+
 # Setup environment for testing
 export FLASK_ENV=testing
 export TEST_DATABASE_URL=sqlite:///test.db

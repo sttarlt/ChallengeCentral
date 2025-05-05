@@ -33,7 +33,7 @@ def add_security_headers(response):
         استجابة معززة برؤوس أمان إضافية
     """
     # إضافة رؤوس HTTPS فقط في بيئة الإنتاج وليس في Replit
-    if not current_app.debug and not current_app.testing and not os.environ.get('REPL_ID'):
+    if not current_app.debug and not current_app.testing and not os.environ.get('REPL_ID') and not os.environ.get('REPLIT_ENVIRONMENT'):
         # رأس HSTS لفرض HTTPS مع فترة صلاحية سنة (31536000 ثانية)
         # شامل النطاقات الفرعية لتغطية جميع الخوادم الفرعية
         # تفعيل preload للتضمين في قوائم preload للمتصفحات الرئيسية
@@ -51,7 +51,7 @@ def add_security_headers(response):
     
     # منع تضمين الموقع في إطارات خارجية لمنع هجمات الـ clickjacking
     # Only apply X-Frame-Options outside Replit environment
-    if not os.environ.get('REPL_ID'):
+    if not os.environ.get('REPL_ID') and not os.environ.get('REPLIT_ENVIRONMENT'):
         response.headers['X-Frame-Options'] = 'DENY'
     
     # تشغيل فلتر XSS المدمج في المتصفح مع وضع الحظر (لدعم المتصفحات القديمة)
@@ -72,7 +72,7 @@ def add_security_headers(response):
     ]
     
     # Allow embedding in iframes for Replit environment
-    if os.environ.get('REPL_ID'):
+    if os.environ.get('REPL_ID') or os.environ.get('REPLIT_ENVIRONMENT'):
         csp_directives.append("frame-ancestors 'self' https://*.replit.app https://*.replit.com")
     else:
         csp_directives.append("frame-ancestors 'none'")  # عدم السماح بتضمين الموقع في إطارات
@@ -86,7 +86,7 @@ def add_security_headers(response):
     ])
     
     # Only add upgrade-insecure-requests outside of Replit
-    if not os.environ.get('REPL_ID'):
+    if not os.environ.get('REPL_ID') and not os.environ.get('REPLIT_ENVIRONMENT'):
         csp_directives.append("upgrade-insecure-requests") # ترقية الطلبات غير المؤمنة إلى HTTPS
     
     # تكوين سياسة أمان المحتوى بناءً على البيئة
@@ -145,7 +145,7 @@ session_config = {
 }
 
 # Only enforce HTTPS for cookies outside of Replit environment
-if not os.environ.get('REPL_ID') and not app.debug and not app.testing:
+if not os.environ.get('REPL_ID') and not os.environ.get('REPLIT_ENVIRONMENT') and not app.debug and not app.testing:
     session_config["SESSION_COOKIE_SECURE"] = True  # يضمن استخدام HTTPS فقط
 
 app.config.update(**session_config)
@@ -211,7 +211,7 @@ def security_checks():
     """
     # فرض استخدام HTTPS في الإنتاج
     # Disable HTTPS enforcement in Replit environment
-    if not app.debug and not app.testing and not os.environ.get('REPL_ID'):
+    if not app.debug and not app.testing and not os.environ.get('REPL_ID') and not os.environ.get('REPLIT_ENVIRONMENT'):
         if request.headers.get('X-Forwarded-Proto', '') != 'https':
             url = request.url.replace('http://', 'https://', 1)
             app.logger.info(f"تحويل طلب HTTP إلى HTTPS: {request.url} -> {url}")
