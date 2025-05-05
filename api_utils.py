@@ -440,6 +440,92 @@ def sanitize_input(data, allowed_fields=None, max_length=None):
     
     return sanitized
 
+def require_admin_verification(f):
+    """
+    زخرفة للتحقق من المستخدم (للعمليات الحساسة مثل إنشاء مفاتيح API أو تعديل معلومات المستخدمين)
+    تتطلب إرسال رمز تحقق إضافي مع الطلب
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            # 1. التحقق من أن المستخدم مسؤول
+            user_id = getattr(g, 'user_id', None)
+            if not user_id:
+                raise APIError('يجب تسجيل الدخول أولاً', status_code=401)
+                
+            # التحقق من صلاحيات المستخدم
+            user = User.query.get(user_id)
+            if not user or not user.is_admin:
+                raise APIError('ليس لديك صلاحية للقيام بهذه العملية', status_code=403)
+                
+            # 2. التحقق من توفر كلمة المرور أو رمز التحقق
+            verification_token = request.headers.get('X-Admin-Verification')
+            if not verification_token:
+                raise APIError('العملية تتطلب تأكيد إضافي. يرجى توفير رمز التحقق', status_code=401)
+                
+            # 3. التحقق من صحة رمز التحقق
+            # يمكن استخدام كلمة مرور المستخدم أو رمز مؤقت تم إرساله إلى البريد الإلكتروني
+            is_valid = False
+            
+            # 3.1 التحقق من كلمة المرور
+            from werkzeug.security import check_password_hash
+            if check_password_hash(user.password_hash, verification_token):
+                is_valid = True
+                
+            # 3.2 التحقق من الرمز المؤقت (إذا كان مخزنًا في الجلسة)
+            temp_tokens = getattr(g, 'admin_verification_tokens', {})
+            if user_id in temp_tokens and temp_tokens[user_id].get('token') == verification_token:
+                # التحقق من صلاحية الرمز (يجب أن يكون حديثًا - أقل من 10 دقائق)
+                token_time = temp_tokens[user_id].get('timestamp')
+                if token_time and (datetime.utcnow() - token_time).total_seconds() < 600:
+                    is_valid = True
+                    # حذف الرمز بعد الاستخدام (يستخدم مرة واحدة فقط)
+                    del temp_tokens[user_id]
+                    
+            if not is_valid:
+                # تسجيل محاولة فاشلة
+                app.logger.warning(f"محاولة تحقق فاشلة لعملية حساسة: المستخدم {user_id}, الطلب: {request.path}")
+                raise APIError('رمز التحقق غير صالح', status_code=401)
+                
+            # تسجيل نجاح التحقق
+            app.logger.info(f"تحقق ناجح لعملية حساسة: المستخدم {user_id}, الطلب: {request.path}")
+            
+            # تنفيذ الدالة الأصلية بعد التحقق
+            return f(*args, **kwargs)
+            
+        except APIError as e:
+            return jsonify(e.to_dict()), e.status_code
+        except Exception as e:
+            app.logger.error(f"خطأ في التحقق من المسؤول: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'error': 'حدث خطأ أثناء التحقق من الصلاحيات'
+            }), 500
+    return decorated
+
+
+def generate_admin_verification_token(user_id):
+    """
+    توليد رمز تحقق مؤقت للمسؤول
+    يمكن استخدامه للتحقق من هوية المسؤول في العمليات الحساسة
+    """
+    # توليد رمز عشوائي
+    alphabet = string.ascii_letters + string.digits
+    token = ''.join(secrets.choice(alphabet) for _ in range(12))
+    
+    # تخزين الرمز مع وقت إنشائه
+    verification_tokens = getattr(g, 'admin_verification_tokens', {})
+    verification_tokens[user_id] = {
+        'token': token,
+        'timestamp': datetime.utcnow()
+    }
+    g.admin_verification_tokens = verification_tokens
+    
+    # في بيئة إنتاجية، يمكن إرسال الرمز عبر البريد الإلكتروني أو رسالة نصية
+    # هنا نقوم فقط بإرجاعه للاختبار
+    return token
+
+
 def handle_api_error(error):
     """
     معالجة أخطاء API وإعادة استجابة متسقة

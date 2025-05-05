@@ -4,7 +4,7 @@ from datetime import timedelta
 import importlib.util
 import secrets
 
-from flask import Flask, request
+from flask import Flask, request, redirect, current_app
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -19,6 +19,33 @@ logging.basicConfig(level=logging.DEBUG)
 
 class Base(DeclarativeBase):
     pass
+
+
+# دالة تنفذ بعد كل طلب لإضافة رؤوس الأمان
+def add_security_headers(response):
+    """
+    إضافة رؤوس أمان HTTP إلى كل استجابة
+    """
+    # إضافة رؤوس أمان HTTPS فقط في بيئة الإنتاج
+    if not current_app.debug and not current_app.testing:
+        # رأس HSTS لفرض HTTPS
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        
+    # رؤوس أمان أساسية (مناسبة لكل البيئات)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    # سياسة أمان المحتوى (CSP)
+    csp = "default-src 'self'; "
+    csp += "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " 
+    csp += "style-src 'self' https://cdn.jsdelivr.net https://cdn.replit.com 'unsafe-inline'; "
+    csp += "img-src 'self' data:; "
+    csp += "font-src 'self' https://cdn.jsdelivr.net;"
+    response.headers['Content-Security-Policy'] = csp
+    
+    return response
 
 
 db = SQLAlchemy(model_class=Base)
@@ -42,6 +69,7 @@ if not app.secret_key:
     if not os.environ.get("SESSION_SECRET"):
         app.logger.warning("تم إنشاء مفتاح سري عشوائي. يُرجى تعيين SESSION_SECRET أو SECRET_KEY في الإعدادات")
 
+# تطبيق ميدلوير ProxyFix لدعم reverse proxy
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # needed for url_for to generate with https
 
 # تكوين ملفات تعريف ارتباط الجلسة
@@ -96,6 +124,20 @@ limiter = Limiter(
 
 # initialize the app with the extension, flask-sqlalchemy >= 3.0.x
 db.init_app(app)
+
+# تسجيل دالة إضافة رؤوس الأمان كمعالج after_request
+@app.after_request
+def apply_security_headers(response):
+    return add_security_headers(response)
+
+# دالة لفرض استخدام HTTPS في الإنتاج
+@app.before_request
+def enforce_https():
+    """تحويل طلبات HTTP إلى HTTPS في بيئة الإنتاج"""
+    if not app.debug and not app.testing:
+        if request.headers.get('X-Forwarded-Proto', '') != 'https':
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)  # إعادة توجيه دائمة
 
 with app.app_context():
     # Import models

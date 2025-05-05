@@ -17,13 +17,49 @@ from api_utils import (
 # إنشاء Blueprint للـ API
 api_bp = Blueprint('api', __name__, url_prefix='/api/v1')
 
-# تهيئة CORS لـ API - سيتم تحديد الأصول المسموح بها من إعدادات النظام
-CORS(api_bp)
+# تطبيق CORS مع الإعدادات المحسّنة
+# تعريف النطاقات المسموح بها بشكل مباشر
+safe_origins = [
+    'https://musabaqati.com',         # الموقع الرئيسي
+    'https://www.musabaqati.com',     # البديل مع www
+    'https://app.musabaqati.com',     # تطبيق الويب
+    'https://admin.musabaqati.com',   # واجهة المشرفين
+    'https://api.musabaqati.com'      # خادم API نفسه (للطلبات الداخلية)
+]
+
+# إضافة النطاقات المحلية في بيئة التطوير فقط
+if app.debug:
+    safe_origins.extend([
+        'http://localhost:5000',
+        'http://127.0.0.1:5000'
+    ])
+
+CORS(api_bp, 
+     origins=safe_origins,
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With', 'X-Admin-Verification'],
+     supports_credentials=False,  # منع إرسال ملفات تعريف الارتباط عبر النطاقات
+     max_age=3600                 # تخزين مؤقت للـ preflight لمدة ساعة
+)
 
 # معالج الأخطاء العامة
 @api_bp.errorhandler(APIError)
 def handle_api_exception(error):
     return handle_api_error(error)
+
+# معالج خاص لطلبات OPTIONS (لدعم CORS preflight)
+@api_bp.route('/<path:path>', methods=['OPTIONS'])
+def handle_preflight_request(path):
+    """
+    معالج خاص لطلبات OPTIONS التي يرسلها المتصفح قبل الطلبات الحقيقية عبر النطاقات
+    يسمح بالتحقق من الصلاحيات والرؤوس المسموح بها
+    """
+    # تسجيل طلب preflight للتحليل
+    app.logger.debug(f"CORS Preflight request for path: {path}")
+    
+    # إرجاع استجابة فارغة مع الرؤوس المناسبة
+    # الرؤوس الأخرى (مثل Access-Control-Allow-Origin) ستتم إضافتها بواسطة ميدلوير CORS
+    return '', 204
 
 # نقطة نهاية صحة النظام
 @api_bp.route('/health', methods=['GET'])
