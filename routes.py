@@ -458,6 +458,7 @@ def points_pricing():
 
 # Admin routes
 @app.route('/admin/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute, 20 per hour")  # حماية معدل الطلبات للوصول إلى واجهة المشرف
 def admin_login():
     # إذا كان المستخدم مسجل دخول بالفعل كمشرف، يتم توجيهه إلى لوحة التحكم مباشرة
     if current_user.is_authenticated and current_user.is_admin:
@@ -486,19 +487,81 @@ def admin_login():
                 if user.is_admin:
                     app.logger.debug("User is admin, logging in")
                     login_user(user)
+                    
+                    # الحصول على عنوان IP
+                    ip_address = request.remote_addr
+                    if 'X-Forwarded-For' in request.headers:
+                        ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                    
+                    # تسجيل تسجيل الدخول الناجح للمشرف
+                    log_audit_event(
+                        event_type='ADMIN_ACCESS',
+                        severity='WARNING',
+                        details=f"تسجيل دخول ناجح للمشرف من المتصفح {request.user_agent.browser}",
+                        user_id=user.id,
+                        username=user.username,
+                        ip_address=ip_address,
+                        notify_admin=True
+                    )
+                    
                     app.logger.debug(f"User logged in: {current_user.username}, is_authenticated: {current_user.is_authenticated}")
                     flash('تم تسجيل الدخول كمشرف بنجاح', 'success')
                     return redirect(url_for('admin_dashboard'))
                 else:
                     app.logger.debug("User is not admin")
                     app.logger.warning(f"Non-admin user {user.username} attempted to access admin panel")
+                    
+                    # الحصول على عنوان IP
+                    ip_address = request.remote_addr
+                    if 'X-Forwarded-For' in request.headers:
+                        ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                    
+                    # تسجيل محاولة وصول غير مصرح بها للوحة التحكم
+                    log_audit_event(
+                        event_type='SUSPICIOUS_ACTIVITY',
+                        severity='ALERT',
+                        details=f"محاولة وصول غير مصرح بها للوحة التحكم من قبل مستخدم عادي: {user.username}",
+                        user_id=user.id,
+                        username=user.username,
+                        ip_address=ip_address,
+                        notify_admin=True
+                    )
+                    
                     flash('حسابك ليس لديه صلاحيات مشرف. يرجى التواصل مع إدارة النظام إذا كنت تعتقد أن هذا خطأ.', 'danger')
                     return redirect(url_for('index'))
             else:
                 app.logger.debug("Password check failed")
+                
+                # الحصول على عنوان IP
+                ip_address = request.remote_addr
+                if 'X-Forwarded-For' in request.headers:
+                    ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                
+                # تسجيل محاولة تسجيل دخول فاشلة
+                monitor_login_attempts(
+                    username=user.username,
+                    success=False, 
+                    ip_address=ip_address, 
+                    details=f"محاولة فاشلة لتسجيل الدخول للوحة التحكم: كلمة مرور خاطئة"
+                )
+                
                 flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
         else:
             app.logger.debug(f"No user found with email: {form.email.data}")
+            
+            # الحصول على عنوان IP
+            ip_address = request.remote_addr
+            if 'X-Forwarded-For' in request.headers:
+                ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+            
+            # تسجيل محاولة تسجيل دخول فاشلة لبريد إلكتروني غير موجود
+            monitor_login_attempts(
+                username=form.email.data, 
+                success=False, 
+                ip_address=ip_address, 
+                details=f"محاولة فاشلة لتسجيل الدخول للوحة التحكم: البريد الإلكتروني غير موجود"
+            )
+            
             flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
     
     return render_template('admin/login.html', form=form)
