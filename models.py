@@ -16,6 +16,10 @@ class User(UserMixin, db.Model):
     # Relationships
     participations = db.relationship('Participation', backref='participant', lazy='dynamic')
     redemptions = db.relationship('RewardRedemption', backref='user', lazy='dynamic')
+    # Chat relationships
+    sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender', lazy='dynamic')
+    received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', backref='recipient', lazy='dynamic')
+    chat_rooms = db.relationship('ChatRoomMember', backref='user', lazy='dynamic')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -77,4 +81,50 @@ class RewardRedemption(db.Model):
     reward_id = db.Column(db.Integer, db.ForeignKey('reward.id'), nullable=False)
     points_spent = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='pending')  # pending, completed, cancelled
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ChatRoom(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    is_direct_message = db.Column(db.Boolean, default=False)  # True if it's a DM between two users
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    members = db.relationship('ChatRoomMember', backref='chat_room', lazy='dynamic')
+    messages = db.relationship('Message', backref='chat_room', lazy='dynamic')
+    
+    def get_recent_messages(self, limit=20):
+        """Get the most recent messages in the chat room."""
+        return self.messages.order_by(Message.created_at.desc()).limit(limit).all()[::-1]
+
+
+class ChatRoomMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    chat_room_id = db.Column(db.Integer, db.ForeignKey('chat_room.id'), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)  # Admin of the chat room
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_read_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def has_unread_messages(self):
+        """Check if there are unread messages for this member."""
+        last_message = self.chat_room.messages.order_by(Message.created_at.desc()).first()
+        if last_message and last_message.created_at > self.last_read_at:
+            return True
+        return False
+    
+    def unread_count(self):
+        """Count the number of unread messages."""
+        return self.chat_room.messages.filter(Message.created_at > self.last_read_at).count()
+
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    chat_room_id = db.Column(db.Integer, db.ForeignKey('chat_room.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Only used for direct messages
+    content = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

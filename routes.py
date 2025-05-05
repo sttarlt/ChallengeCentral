@@ -1,11 +1,12 @@
-from flask import render_template, redirect, url_for, flash, request, abort
+from flask import render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, or_
 from app import app, db
-from models import User, Competition, Reward, Participation, RewardRedemption
+from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message
 from forms import (
     LoginForm, RegistrationForm, CompetitionForm, RewardForm,
-    ParticipationForm, RedeemRewardForm, RedemptionStatusForm
+    ParticipationForm, RedeemRewardForm, RedemptionStatusForm,
+    CreateChatRoomForm, SendMessageForm, DirectMessageForm
 )
 from datetime import datetime
 
@@ -396,3 +397,248 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_server_error(e):
     return render_template('500.html'), 500
+
+
+# Chat routes
+@app.route('/chat')
+@login_required
+def chat_rooms():
+    """Show all chat rooms the user is part of, plus public rooms they can join."""
+    # Get all chat rooms the user is a member of
+    user_chat_memberships = ChatRoomMember.query.filter_by(user_id=current_user.id).all()
+    user_chat_room_ids = [membership.chat_room_id for membership in user_chat_memberships]
+    
+    # Get those chat rooms
+    user_chat_rooms = ChatRoom.query.filter(ChatRoom.id.in_(user_chat_room_ids)).all()
+    
+    # Get direct message rooms
+    direct_message_rooms = [room for room in user_chat_rooms if room.is_direct_message]
+    
+    # Get group chat rooms
+    group_chat_rooms = [room for room in user_chat_rooms if not room.is_direct_message]
+    
+    # Get public chat rooms user is not part of
+    other_public_rooms = ChatRoom.query.filter(
+        ~ChatRoom.id.in_(user_chat_room_ids),
+        ChatRoom.is_direct_message == False
+    ).all()
+    
+    # Form for creating a new chat room
+    create_form = CreateChatRoomForm()
+    
+    # Form for sending direct message
+    dm_form = DirectMessageForm()
+    
+    return render_template(
+        'chat/rooms.html', 
+        direct_message_rooms=direct_message_rooms,
+        group_chat_rooms=group_chat_rooms,
+        other_public_rooms=other_public_rooms,
+        create_form=create_form,
+        dm_form=dm_form
+    )
+
+
+@app.route('/chat/rooms/create', methods=['POST'])
+@login_required
+def create_chat_room():
+    """Create a new chat room."""
+    form = CreateChatRoomForm()
+    if form.validate_on_submit():
+        # Create new chat room
+        chat_room = ChatRoom(
+            name=form.name.data,
+            description=form.description.data,
+            is_direct_message=False
+        )
+        db.session.add(chat_room)
+        db.session.commit()
+        
+        # Add the creator as a member and admin
+        member = ChatRoomMember(
+            user_id=current_user.id,
+            chat_room_id=chat_room.id,
+            is_admin=True
+        )
+        db.session.add(member)
+        db.session.commit()
+        
+        flash('تم إنشاء غرفة الدردشة بنجاح!', 'success')
+        return redirect(url_for('chat_room', room_id=chat_room.id))
+    
+    # If validation failed, flash errors
+    for field, errors in form.errors.items():
+        for error in errors:
+            flash(f"{getattr(form, field).label.text}: {error}", 'danger')
+    
+    return redirect(url_for('chat_rooms'))
+
+
+@app.route('/chat/rooms/<int:room_id>', methods=['GET', 'POST'])
+@login_required
+def chat_room(room_id):
+    """Display a chat room and handle posting messages."""
+    chat_room = ChatRoom.query.get_or_404(room_id)
+    
+    # Check if user is a member of this room
+    membership = ChatRoomMember.query.filter_by(
+        user_id=current_user.id,
+        chat_room_id=chat_room.id
+    ).first()
+    
+    # If not, add them if it's not a direct message room
+    if not membership and not chat_room.is_direct_message:
+        membership = ChatRoomMember(
+            user_id=current_user.id,
+            chat_room_id=chat_room.id
+        )
+        db.session.add(membership)
+        db.session.commit()
+    elif not membership and chat_room.is_direct_message:
+        # If it's a direct message room and user is not a member, they shouldn't see it
+        abort(403)
+    
+    # Update last read timestamp
+    membership.last_read_at = datetime.utcnow()
+    db.session.commit()
+    
+    # Get all messages in this room
+    messages = Message.query.filter_by(
+        chat_room_id=chat_room.id
+    ).order_by(Message.created_at).all()
+    
+    # Get all members of this room
+    members = User.query.join(ChatRoomMember).filter(
+        ChatRoomMember.chat_room_id == chat_room.id
+    ).all()
+    
+    # Form for sending messages
+    form = SendMessageForm()
+    if form.validate_on_submit():
+        message = Message(
+            chat_room_id=chat_room.id,
+            sender_id=current_user.id,
+            content=form.content.data
+        )
+        
+        # If it's a direct message, set the recipient
+        if chat_room.is_direct_message:
+            # Find the other user in the room
+            other_member = ChatRoomMember.query.filter(
+                ChatRoomMember.chat_room_id == chat_room.id,
+                ChatRoomMember.user_id != current_user.id
+            ).first()
+            
+            if other_member:
+                message.recipient_id = other_member.user_id
+        
+        db.session.add(message)
+        db.session.commit()
+        
+        # Redirect to avoid form resubmission
+        return redirect(url_for('chat_room', room_id=chat_room.id))
+    
+    return render_template(
+        'chat/room.html',
+        chat_room=chat_room,
+        messages=messages,
+        members=members,
+        form=form
+    )
+
+
+@app.route('/chat/join/<int:room_id>')
+@login_required
+def join_chat_room(room_id):
+    """Join a chat room."""
+    chat_room = ChatRoom.query.get_or_404(room_id)
+    
+    # Check if user is already a member
+    existing_membership = ChatRoomMember.query.filter_by(
+        user_id=current_user.id,
+        chat_room_id=chat_room.id
+    ).first()
+    
+    if existing_membership:
+        flash('أنت بالفعل عضو في هذه الغرفة', 'info')
+    else:
+        # Add user as a member
+        member = ChatRoomMember(
+            user_id=current_user.id,
+            chat_room_id=chat_room.id
+        )
+        db.session.add(member)
+        db.session.commit()
+        flash('تم الانضمام للغرفة بنجاح!', 'success')
+    
+    return redirect(url_for('chat_room', room_id=chat_room.id))
+
+
+@app.route('/chat/direct-message', methods=['POST'])
+@login_required
+def send_direct_message():
+    """Start a direct message conversation with another user."""
+    form = DirectMessageForm()
+    if form.validate_on_submit():
+        # Find the recipient user
+        recipient = User.query.filter_by(username=form.recipient_username.data).first()
+        
+        if not recipient:
+            flash('لم يتم العثور على المستخدم', 'danger')
+            return redirect(url_for('chat_rooms'))
+        
+        # Check if there's already a DM room between these users
+        # Get all rooms where both users are members
+        sender_rooms = ChatRoomMember.query.filter_by(user_id=current_user.id).with_entities(ChatRoomMember.chat_room_id).subquery()
+        recipient_rooms = ChatRoomMember.query.filter_by(user_id=recipient.id).with_entities(ChatRoomMember.chat_room_id).subquery()
+        
+        common_rooms = ChatRoom.query.filter(
+            ChatRoom.id.in_(sender_rooms),
+            ChatRoom.id.in_(recipient_rooms),
+            ChatRoom.is_direct_message == True
+        ).first()
+        
+        if common_rooms:
+            # If they already have a DM room, use that
+            chat_room = common_rooms
+        else:
+            # Create a new DM room
+            room_name = f"محادثة بين {current_user.username} و {recipient.username}"
+            chat_room = ChatRoom(
+                name=room_name,
+                is_direct_message=True
+            )
+            db.session.add(chat_room)
+            db.session.commit()
+            
+            # Add both users as members
+            sender_member = ChatRoomMember(
+                user_id=current_user.id,
+                chat_room_id=chat_room.id
+            )
+            recipient_member = ChatRoomMember(
+                user_id=recipient.id,
+                chat_room_id=chat_room.id
+            )
+            db.session.add(sender_member)
+            db.session.add(recipient_member)
+            db.session.commit()
+        
+        # Create the first message
+        message = Message(
+            chat_room_id=chat_room.id,
+            sender_id=current_user.id,
+            recipient_id=recipient.id,
+            content=form.content.data
+        )
+        db.session.add(message)
+        db.session.commit()
+        
+        return redirect(url_for('chat_room', room_id=chat_room.id))
+    
+    # If validation failed, flash errors
+    for field, errors in form.errors.items():
+        for error in errors:
+            flash(f"{getattr(form, field).label.text}: {error}", 'danger')
+    
+    return redirect(url_for('chat_rooms'))

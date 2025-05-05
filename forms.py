@@ -58,3 +58,25 @@ class RedeemRewardForm(FlaskForm):
 class RedemptionStatusForm(FlaskForm):
     status = SelectField('الحالة', choices=[('pending', 'قيد الانتظار'), ('completed', 'مكتمل'), ('cancelled', 'ملغي')])
     submit = SubmitField('تحديث الحالة')
+
+
+class CreateChatRoomForm(FlaskForm):
+    name = StringField('اسم الغرفة', validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField('وصف الغرفة')
+    submit = SubmitField('إنشاء غرفة دردشة')
+
+
+class SendMessageForm(FlaskForm):
+    content = TextAreaField('الرسالة', validators=[DataRequired()])
+    submit = SubmitField('إرسال')
+
+
+class DirectMessageForm(FlaskForm):
+    recipient_username = StringField('اسم المستخدم', validators=[DataRequired()])
+    content = TextAreaField('الرسالة', validators=[DataRequired()])
+    submit = SubmitField('إرسال رسالة خاصة')
+    
+    def validate_recipient_username(self, recipient_username):
+        user = User.query.filter_by(username=recipient_username.data).first()
+        if not user:
+            raise ValidationError('لم يتم العثور على هذا المستخدم.')
