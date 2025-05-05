@@ -203,13 +203,14 @@ def verify_referral(referral_id, verification_method=None, request=None):
                     # زيادة عدد الإحالات الناجحة
                     referrer.total_referrals += 1
                     
-                    # إضافة مكافأة الإحالة الأساسية باستخدام نظام التسجيل المحسّن
+                    # إضافة مكافأة الإحالة الأساسية من حساب المشرف المركزي
                     add_success = referrer.add_points(
                         points=reward_amount,
                         transaction_type='referral_reward',
                         related_id=referral_id,
                         description=f'مكافأة إحالة المستخدم {referred.username}',
-                        request=request
+                        request=request,
+                        from_admin=True
                     )
                     
                     if add_success:
@@ -227,13 +228,14 @@ def verify_referral(referral_id, verification_method=None, request=None):
                                 # التحقق مرة أخرى من إمكانية تلقي المكافأة الإضافية
                                 can_add_bonus, _ = referrer.can_receive_referral_reward(bonus)
                                 if can_add_bonus:
-                                    # إضافة مكافأة المرحلة باستخدام نظام التسجيل المحسّن
+                                    # إضافة مكافأة المرحلة من حساب المشرف المركزي
                                     milestone_success = referrer.add_points(
                                         points=bonus,
                                         transaction_type='milestone_reward',
                                         related_id=referral_id,
                                         description=f'مكافأة إضافية - {milestone} إحالات',
-                                        request=request
+                                        request=request,
+                                        from_admin=True
                                     )
                                     
                                     if milestone_success:
@@ -244,15 +246,16 @@ def verify_referral(referral_id, verification_method=None, request=None):
                                         # إنشاء إشعار للمستخدم بالوصول للمعلم
                                         app.logger.info(f"وصل المستخدم {referrer.username} لمعلم إحالة: {milestone} إحالات، مكافأة: {bonus} نقطة")
                         
-                        # منح المستخدم الجديد المكافأة الترحيبية
+                        # منح المستخدم الجديد المكافأة الترحيبية من حساب المشرف المركزي
                         if config.REFERRAL_WELCOME_BONUS > 0:
-                            # استخدام نظام التسجيل المحسّن للمستخدم الجديد
+                            # استخدام نظام التسجيل المحسّن للمستخدم الجديد مع خصم من حساب المشرف
                             welcome_success = referred.add_points(
                                 points=config.REFERRAL_WELCOME_BONUS,
                                 transaction_type='welcome_bonus',
                                 related_id=referral_id,
                                 description='مكافأة ترحيبية للتسجيل عبر دعوة صديق',
-                                request=request
+                                request=request,
+                                from_admin=True
                             )
                             
                             if welcome_success:
