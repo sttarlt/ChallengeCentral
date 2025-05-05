@@ -685,29 +685,38 @@ def admin_edit_points_package(package_id):
 @admin_required
 def admin_config():
     """تعديل إعدادات النظام"""
+    from models import SystemConfig
     
     if request.method == 'POST':
-        new_contact_link = request.form.get('contact_link')
-        
-        # Update the config.py file (we're doing this by modifying and writing to the file directly)
-        with open('config.py', 'r') as file:
-            lines = file.readlines()
-        
-        with open('config.py', 'w') as file:
-            for line in lines:
-                if 'CONTACT_LINK' in line:
-                    file.write(f'CONTACT_LINK = "{new_contact_link}"\n')
-                else:
-                    file.write(line)
-        
-        # Reload config
-        import importlib
-        importlib.reload(config)
-        
-        flash('تم تحديث إعدادات النظام بنجاح', 'success')
-        return redirect(url_for('admin_config'))
+        try:
+            new_contact_link = request.form.get('contact_link', '')
+            
+            # التحقق من صحة رابط الاتصال
+            if not new_contact_link.startswith(('https://t.me/', 'https://telegram.me/')):
+                flash('رابط التواصل يجب أن يكون رابط تيليجرام صالح يبدأ بـ https://t.me/', 'danger')
+                return redirect(url_for('admin_config'))
+            
+            # حفظ الإعدادات في قاعدة البيانات
+            SystemConfig.set(
+                key='CONTACT_LINK', 
+                value=new_contact_link, 
+                description='رابط التواصل مع المشرف للشراء'
+            )
+            
+            # تحديث المتغير في الذاكرة
+            config.CONTACT_LINK = new_contact_link
+            
+            flash('تم تحديث إعدادات النظام بنجاح', 'success')
+            return redirect(url_for('admin_config'))
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"خطأ في تحديث التكوين: {str(e)}")
+            flash(f'حدث خطأ أثناء تحديث الإعدادات: {str(e)}', 'danger')
     
-    return render_template('admin/config.html', contact_link=config.CONTACT_LINK)
+    # استخدام القيمة من قاعدة البيانات إذا كانت موجودة، وإلا استخدام القيمة من ملف config.py
+    contact_link = SystemConfig.get('CONTACT_LINK', config.CONTACT_LINK)
+    
+    return render_template('admin/config.html', contact_link=contact_link)
 
 
 @app.route('/admin/users', methods=['GET'])
