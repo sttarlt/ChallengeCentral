@@ -68,13 +68,22 @@ def add_security_headers(response):
         "img-src 'self' data: https:", # مصادر الصور
         "font-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com", # مصادر الخطوط
         "connect-src 'self'", # السماح بالاتصال بنفس المصدر فقط
-        "frame-ancestors 'none'", # عدم السماح بتضمين الموقع في إطارات
+    ]
+    
+    # Allow embedding in iframes for Replit environment
+    if os.environ.get('REPL_ID'):
+        csp_directives.append("frame-ancestors 'self' https://*.replit.app https://*.replit.com")
+    else:
+        csp_directives.append("frame-ancestors 'none'")  # عدم السماح بتضمين الموقع في إطارات
+        
+    # Add remaining directives
+    csp_directives.extend([
         "base-uri 'self'", # قيود على عنصر <base>
         "form-action 'self'", # السماح بإرسال النماذج لنفس المصدر فقط
         "object-src 'none'", # منع محتوى object و embed
         "block-all-mixed-content", # منع المحتوى المختلط
         "upgrade-insecure-requests" # ترقية الطلبات غير المؤمنة إلى HTTPS
-    ]
+    ])
     
     # تكوين سياسة أمان المحتوى بناءً على البيئة
     if current_app.debug:
@@ -125,12 +134,17 @@ if not app.secret_key:
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # needed for url_for to generate with https
 
 # تكوين ملفات تعريف ارتباط الجلسة
-app.config.update(
-    SESSION_COOKIE_SECURE=True,  # يضمن استخدام HTTPS فقط
-    SESSION_COOKIE_HTTPONLY=True,  # يمنع الوصول عبر JavaScript
-    SESSION_COOKIE_SAMESITE='Lax',  # يحمي من هجمات CSRF عبر المواقع
-    PERMANENT_SESSION_LIFETIME=timedelta(days=1)  # تعيين مدة الجلسة
-)
+session_config = {
+    "SESSION_COOKIE_HTTPONLY": True,  # يمنع الوصول عبر JavaScript
+    "SESSION_COOKIE_SAMESITE": 'Lax',  # يحمي من هجمات CSRF عبر المواقع
+    "PERMANENT_SESSION_LIFETIME": timedelta(days=1)  # تعيين مدة الجلسة
+}
+
+# Only enforce HTTPS for cookies outside of Replit environment
+if not os.environ.get('REPL_ID') and not app.debug and not app.testing:
+    session_config["SESSION_COOKIE_SECURE"] = True  # يضمن استخدام HTTPS فقط
+
+app.config.update(**session_config)
 
 # تكوين قاعدة البيانات
 # استخدام عنوان قاعدة البيانات من ملف الإعدادات السرية إذا كان موجوداً
@@ -192,7 +206,8 @@ def security_checks():
     3. منع طلبات TRACE/TRACK (قد تستخدم في هجمات XST)
     """
     # فرض استخدام HTTPS في الإنتاج
-    if not app.debug and not app.testing:
+    # Disable HTTPS enforcement in Replit environment
+    if not app.debug and not app.testing and not os.environ.get('REPL_ID'):
         if request.headers.get('X-Forwarded-Proto', '') != 'https':
             url = request.url.replace('http://', 'https://', 1)
             app.logger.info(f"تحويل طلب HTTP إلى HTTPS: {request.url} -> {url}")
