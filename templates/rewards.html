@@ -16,10 +16,10 @@
         <div class="d-flex justify-content-end">
             <select class="form-select" id="reward-filter" style="max-width: 200px;">
                 <option value="all" selected>جميع الجوائز</option>
-                <option value="low-to-high">النقاط (الأقل إلى الأعلى)</option>
-                <option value="high-to-low">النقاط (الأعلى إلى الأقل)</option>
+                <option value="low-to-high">الكربتو (الأقل إلى الأعلى)</option>
+                <option value="high-to-low">الكربتو (الأعلى إلى الأقل)</option>
                 {% if current_user.is_authenticated %}
-                <option value="affordable">الجوائز المتاحة لنقاطي</option>
+                <option value="affordable">الجوائز المتاحة لرصيدي</option>
                 {% endif %}
             </select>
         </div>
@@ -31,9 +31,9 @@
     <div class="d-flex justify-content-between align-items-center">
         <div>
             <i class="fas fa-info-circle me-2"></i>
-            لديك حالياً <strong>{{ current_user.points }} نقطة</strong> يمكنك استبدالها بجوائز قيمة!
+            لديك حالياً <strong>{{ current_user.points }} كربتو</strong> يمكنك استبدالها بجوائز قيمة!
         </div>
-        <a href="{{ url_for('competitions') }}" class="btn btn-primary btn-sm">احصل على المزيد من النقاط</a>
+        <a href="{{ url_for('competitions') }}" class="btn btn-primary btn-sm">احصل على المزيد من الكربتو</a>
     </div>
 </div>
 {% endif %}
@@ -44,7 +44,7 @@
         <div class="col-md-6 col-lg-4 mb-4">
             <div class="card h-100 card-reward shadow-sm reward-item" id="reward-{{ reward.id }}" data-points="{{ reward.points_required }}">
                 <div class="card-header d-flex justify-content-between align-items-center bg-light">
-                    <span class="badge bg-secondary">{{ reward.points_required }} نقطة</span>
+                    <span class="badge bg-secondary">{{ reward.points_required }} كربتو</span>
                     {% if reward.quantity <= 5 and reward.quantity > 0 %}
                         <span class="badge bg-warning text-dark">باقي {{ reward.quantity }} فقط</span>
                     {% endif %}
@@ -65,7 +65,7 @@
                             {% if not reward.is_available or reward.quantity <= 0 %}
                                 نفذت الكمية
                             {% elif current_user.points < reward.points_required %}
-                                نقاطك غير كافية
+                                الكربتو غير كافي
                             {% else %}
                                 استبدال الجائزة
                             {% endif %}
@@ -97,8 +97,8 @@
             <div class="modal-body">
                 <p>هل أنت متأكد من رغبتك في استبدال جائزة <strong id="reward-name"></strong>؟</p>
                 <ul>
-                    <li>النقاط المطلوبة: <span id="points-cost" class="text-primary"></span></li>
-                    <li>النقاط المتبقية بعد الاستبدال: <span id="remaining-points" class="text-primary"></span></li>
+                    <li>الكربتو المطلوب: <span id="points-cost" class="text-primary"></span></li>
+                    <li>الكربتو المتبقي بعد الاستبدال: <span id="remaining-points" class="text-primary"></span></li>
                 </ul>
             </div>
             <div class="modal-footer">
@@ -117,7 +117,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">نقاط غير كافية</h5>
+                <h5 class="modal-title">الكربتو غير كافي</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">

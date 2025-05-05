@@ -58,7 +58,7 @@
                                         <small>تنتهي في {{ participation.competition.end_date.strftime('%d/%m/%Y') }}</small>
                                     </div>
                                     <p class="mb-1">{{ participation.competition.description|truncate(100) }}</p>
-                                    <small class="text-primary">{{ participation.competition.points }} نقطة</small>
+                                    <small class="text-primary">{{ participation.competition.points }} كربتو</small>
                                 </a>
                                 {% endfor %}
                             </div>
@@ -80,7 +80,7 @@
                                     </div>
                                     <div class="d-flex justify-content-between align-items-center mt-2">
                                         <span class="badge bg-success">مكتملة</span>
-                                        <span class="text-primary">{{ participation.score }} نقطة</span>
+                                        <span class="text-primary">{{ participation.score }} كربتو</span>
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -110,7 +110,7 @@
                                         {% elif redemption.status == 'cancelled' %}
                                             <span class="badge bg-danger">ملغي</span>
                                         {% endif %}
-                                        <span class="text-muted">{{ redemption.points_spent }} نقطة</span>
+                                        <span class="text-muted">{{ redemption.points_spent }} كربتو</span>
                                     </div>
                                 </div>
                                 {% endfor %}
