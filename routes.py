@@ -892,6 +892,161 @@ def admin_add_points():
     return render_template('admin/add_points.html', form=form)
 
 
+@app.route('/admin/purchases')
+@admin_required
+def admin_purchases():
+    """عرض سجل عمليات شراء الكربتو"""
+    from models import PurchaseRecord
+    from forms import PurchaseRecordForm
+    
+    # استخراج معايير البحث من البارامترات
+    user_id = request.args.get('user_id', type=int)
+    payment_method = request.args.get('payment_method')
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    page = request.args.get('page', 1, type=int)
+    per_page = 20  # عدد العناصر في كل صفحة
+    
+    # إنشاء الاستعلام الأساسي
+    query = PurchaseRecord.query
+    
+    # تطبيق المرشحات إذا كانت موجودة
+    if user_id:
+        query = query.filter(PurchaseRecord.user_id == user_id)
+    
+    if payment_method:
+        query = query.filter(PurchaseRecord.payment_method == payment_method)
+    
+    # تطبيق نطاق التاريخ
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+            query = query.filter(PurchaseRecord.created_at >= start_date)
+        except ValueError:
+            flash('صيغة تاريخ البداية غير صحيحة، تم تجاهلها', 'warning')
+    
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+            # إضافة يوم كامل لتضمين كل معاملات اليوم المحدد
+            end_date = end_date.replace(hour=23, minute=59, second=59)
+            query = query.filter(PurchaseRecord.created_at <= end_date)
+        except ValueError:
+            flash('صيغة تاريخ النهاية غير صحيحة، تم تجاهلها', 'warning')
+    
+    # ترتيب النتائج من الأحدث إلى الأقدم
+    query = query.order_by(PurchaseRecord.created_at.desc())
+    
+    # تنفيذ الاستعلام مع التقسيم إلى صفحات
+    pagination = query.paginate(page=page, per_page=per_page)
+    purchases = pagination.items
+    
+    return render_template(
+        'admin/purchases.html',
+        purchases=purchases,
+        pagination=pagination
+    )
+
+
+@app.route('/admin/purchases/user/<int:user_id>')
+@admin_required
+def admin_user_purchases(user_id):
+    """عرض سجل عمليات شراء الكربتو لمستخدم محدد"""
+    from models import PurchaseRecord
+    
+    # التحقق من وجود المستخدم
+    user = User.query.get_or_404(user_id)
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = 10  # عدد العناصر في كل صفحة
+    
+    # الحصول على معاملات المستخدم
+    query = PurchaseRecord.query.filter_by(user_id=user_id).order_by(PurchaseRecord.created_at.desc())
+    pagination = query.paginate(page=page, per_page=per_page)
+    purchases = pagination.items
+    
+    return render_template(
+        'admin/purchases.html',
+        purchases=purchases,
+        pagination=pagination,
+        user=user
+    )
+
+
+@app.route('/admin/purchases/add', methods=['GET', 'POST'])
+@admin_required
+def admin_add_purchase():
+    """إضافة عملية شراء كربتو يدوياً"""
+    from models import PurchaseRecord, PointsTransaction
+    from forms import PurchaseRecordForm
+    
+    form = PurchaseRecordForm()
+    
+    if form.validate_on_submit():
+        # البحث عن المستخدم بواسطة اسم المستخدم
+        user = User.query.filter_by(username=form.username.data).first()
+        
+        if not user:
+            flash(f'لم يتم العثور على المستخدم: {form.username.data}', 'danger')
+            return redirect(url_for('admin_add_purchase'))
+        
+        amount_paid = form.amount_paid.data
+        currency = form.currency.data
+        points_added = form.points_added.data
+        payment_method = form.payment_method.data
+        reference = form.reference.data
+        notes = form.notes.data
+        
+        # إنشاء سجل عملية الشراء
+        purchase = PurchaseRecord(
+            user_id=user.id,
+            amount_paid=amount_paid,
+            currency=currency,
+            points_added=points_added,
+            payment_method=payment_method,
+            reference=reference,
+            notes=notes,
+            created_by_id=current_user.id
+        )
+        
+        # إضافة سجل العملية للقاعدة
+        db.session.add(purchase)
+        
+        # إضافة النقاط للمستخدم عبر الدالة المحسنة
+        success = user.add_points(
+            points=points_added,
+            transaction_type='purchase',
+            related_id=None,  # سيتم تحديثه لاحقاً بعد الحصول على معرف العملية
+            description=f'شراء {points_added} كربتو مقابل {amount_paid} {currency}',
+            created_by_id=current_user.id,
+            request=request
+        )
+        
+        if success:
+            db.session.commit()
+            
+            # تحديث purchase.id في سجل المعاملة لربط العمليتين
+            transaction = PointsTransaction.query.filter_by(
+                user_id=user.id,
+                transaction_type='purchase',
+                amount=points_added
+            ).order_by(desc(PointsTransaction.created_at)).first()
+            
+            if transaction:
+                transaction.related_id = purchase.id
+                db.session.commit()
+            
+            flash(f'تم إضافة {points_added} كربتو إلى حساب {user.username} مقابل {amount_paid} {currency} بنجاح', 'success')
+            app.logger.info(f"Admin {current_user.username} added purchase record for user {user.username}: {points_added} points for {amount_paid} {currency}")
+            
+            # إعادة توجيه إلى صفحة المستخدم
+            return redirect(url_for('admin_user_purchases', user_id=user.id))
+        else:
+            flash('حدث خطأ أثناء محاولة إضافة النقاط', 'danger')
+    
+    return render_template('admin/add_purchase.html', form=form)
+
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404

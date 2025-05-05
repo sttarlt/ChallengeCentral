@@ -1,0 +1,131 @@
+{% extends "admin/dashboard.html" %}
+
+{% block admin_title %}إضافة عملية شراء جديدة{% endblock %}
+
+{% block admin_heading %}إضافة عملية شراء كربتو جديدة{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+  <div class="col-lg-8 col-md-10 mx-auto">
+    <div class="card shadow-sm">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">نموذج إضافة عملية شراء</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" action="">
+          {{ form.hidden_tag() }}
+          
+          <div class="mb-3">
+            {{ form.username.label(class="form-label") }}
+            {{ form.username(class="form-control", placeholder="أدخل اسم المستخدم") }}
+            {% if form.username.errors %}
+              <div class="text-danger">
+                {% for error in form.username.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="form-text">أدخل اسم المستخدم الذي ستضيف له الكربتو</div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              {{ form.amount_paid.label(class="form-label") }}
+              {{ form.amount_paid(class="form-control", placeholder="المبلغ المدفوع") }}
+              {% if form.amount_paid.errors %}
+                <div class="text-danger">
+                  {% for error in form.amount_paid.errors %}
+                    {{ error }}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              {{ form.currency.label(class="form-label") }}
+              {{ form.currency(class="form-select") }}
+              {% if form.currency.errors %}
+                <div class="text-danger">
+                  {% for error in form.currency.errors %}
+                    {{ error }}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            {{ form.points_added.label(class="form-label") }}
+            {{ form.points_added(class="form-control", placeholder="عدد الكربتو المضافة") }}
+            {% if form.points_added.errors %}
+              <div class="text-danger">
+                {% for error in form.points_added.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="mb-3">
+            {{ form.payment_method.label(class="form-label") }}
+            {{ form.payment_method(class="form-select") }}
+            {% if form.payment_method.errors %}
+              <div class="text-danger">
+                {% for error in form.payment_method.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="mb-3">
+            {{ form.reference.label(class="form-label") }}
+            {{ form.reference(class="form-control", placeholder="رقم المرجع أو المعاملة") }}
+            {% if form.reference.errors %}
+              <div class="text-danger">
+                {% for error in form.reference.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="form-text">مثال: رقم الحوالة، رقم المعاملة، معرف محادثة تلغرام، إلخ</div>
+          </div>
+          
+          <div class="mb-3">
+            {{ form.notes.label(class="form-label") }}
+            {{ form.notes(class="form-control", rows=3, placeholder="ملاحظات إضافية عن العملية") }}
+            {% if form.notes.errors %}
+              <div class="text-danger">
+                {% for error in form.notes.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="text-center mt-4">
+            <a href="{{ url_for('admin_purchases') }}" class="btn btn-secondary me-2">إلغاء</a>
+            {{ form.submit(class="btn btn-primary") }}
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <div class="card shadow-sm mt-4">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">إرشادات</h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info mb-0">
+          <h6 class="alert-heading">ملاحظات مهمة:</h6>
+          <ul class="mb-0">
+            <li>تأكد من إدخال اسم المستخدم بشكل صحيح، سيتم التحقق منه تلقائياً.</li>
+            <li>سيتم تحديث رصيد الكربتو للمستخدم فوراً عند إضافة عملية الشراء.</li>
+            <li>ستظهر العملية في سجل معاملات الكربتو أيضاً لضمان التتبع الكامل.</li>
+            <li>تأكد من كتابة المرجع بوضوح حتى يمكن الرجوع إليه مستقبلاً إذا لزم الأمر.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

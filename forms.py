@@ -99,3 +99,20 @@ class AdminPointsForm(FlaskForm):
     description = StringField('السبب', validators=[DataRequired(), Length(max=255)])
     notify_user = BooleanField('إشعار المستخدم')
     submit = SubmitField('تعديل الرصيد')
+
+
+class PurchaseRecordForm(FlaskForm):
+    """نموذج تسجيل عملية شراء جديدة من قبل المشرف"""
+    username = StringField('اسم المستخدم', validators=[DataRequired()])
+    amount_paid = FloatField('المبلغ المدفوع (دولار)', validators=[DataRequired(), NumberRange(min=0.01)])
+    currency = SelectField('العملة', choices=[('USD', 'دولار أمريكي'), ('EUR', 'يورو'), ('SAR', 'ريال سعودي')], default='USD')
+    points_added = IntegerField('كمية الكربتو المضافة', validators=[DataRequired(), NumberRange(min=1)])
+    payment_method = SelectField('طريقة الدفع', choices=[
+        ('telegram', 'تلغرام'),
+        ('bank_transfer', 'تحويل بنكي'),
+        ('paypal', 'PayPal'),
+        ('other', 'طريقة أخرى')
+    ])
+    reference = StringField('مرجع أو رقم المعاملة', validators=[Length(max=255)])
+    notes = TextAreaField('ملاحظات إضافية')
+    submit = SubmitField('إضافة عملية الشراء')

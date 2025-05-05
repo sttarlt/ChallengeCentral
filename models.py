@@ -40,6 +40,27 @@ class PointsTransaction(db.Model):
         return f'<PointsTransaction {self.id}: {self.amount} for user {self.user_id}>'
 
 
+class PurchaseRecord(db.Model):
+    """سجل عمليات شراء الكربتو"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount_paid = db.Column(db.Float, nullable=False)  # المبلغ المدفوع بالدولار
+    currency = db.Column(db.String(10), default='USD')  # عملة الدفع
+    points_added = db.Column(db.Integer, nullable=False)  # كمية الكربتو المضافة
+    payment_method = db.Column(db.String(50), nullable=True)  # طريقة الدفع (تلغرام، تحويل بنكي، إلخ)
+    reference = db.Column(db.String(255), nullable=True)  # مرجع الدفع أو رقم المعاملة
+    notes = db.Column(db.Text, nullable=True)  # ملاحظات إضافية
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # المشرف الذي أضاف العملية
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # وقت العملية
+    
+    # العلاقات
+    user = db.relationship('User', foreign_keys=[user_id], backref='purchases')
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    
+    def __repr__(self):
+        return f'<PurchaseRecord {self.id}: ${self.amount_paid} for {self.points_added} points by user {self.user_id}>'
+
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
