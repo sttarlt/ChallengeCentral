@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}شراء النقاط - مسابقاتي{% endblock %}
+{% block title %}شراء الكربتو - مسابقاتي{% endblock %}
 
 {% block css %}
 <style>
@@ -60,7 +60,7 @@
 <section class="py-5">
     <div class="container">
         <div class="text-center mb-5">
-            <h1 class="display-4 fw-bold">باقات النقاط</h1>
+            <h1 class="display-4 fw-bold">باقات الكربتو</h1>
             <p class="fs-5 text-muted">اختر الباقة المناسبة لك وابدأ في جني المكافآت</p>
         </div>
         
@@ -76,7 +76,7 @@
                             <div class="pricing-body text-center">
                                 <div class="mb-4">
                                     <div class="pricing-points">
-                                        <i class="fas fa-coins me-2"></i>{{ package.points }} نقطة
+                                        <i class="fas fa-coins me-2"></i>{{ package.points }} كربتو
                                     </div>
                                     {% if package.description %}
                                         <p class="mb-0 mt-2 text-muted">{{ package.description }}</p>
@@ -84,7 +84,7 @@
                                 </div>
                                 <div class="d-grid">
                                     <a href="{{ contact_link }}" class="btn btn-primary btn-lg" target="_blank">
-                                        <i class="fas fa-shopping-cart me-2"></i>تواصل للشراء
+                                        <i class="fas fa-shopping-cart me-2"></i>شراء الآن
                                     </a>
                                 </div>
                             </div>
