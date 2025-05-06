@@ -1448,16 +1448,33 @@ def admin_delete_question(competition_id, question_id):
         return redirect(url_for('admin_competition_questions', competition_id=competition.id))
         
     # التحقق مما إذا كانت هناك مشاركات تستخدم هذا السؤال
-    # يمكن استخدام البحث في مشاركات المسابقة بدلاً من فحص الإجابات مباشرة
-    participations_with_answers = Participation.query.filter(
+    # 1. البحث عن مشاركات المسابقة
+    participations = Participation.query.filter(
         Participation.competition_id == competition_id,
         Participation.completed == True
-    ).count()
+    ).all()
+    
+    participations_with_answers = len(participations)
+    participants_usernames = []
+    
+    # 2. الحصول على أسماء المستخدمين الذين لديهم مشاركات
+    if participations_with_answers > 0:
+        participants_ids = [p.user_id for p in participations]
+        participants = User.query.filter(User.id.in_(participants_ids)).all()
+        participants_usernames = [user.username for user in participants]
     
     if participations_with_answers > 0:
         # إذا وجدت مشاركات، نعرض رسالة ونقترح إلغاء تنشيط السؤال بدلاً من حذفه
-        flash('لا يمكن حذف هذا السؤال لأنه مرتبط بمشاركات مكتملة. يمكنك إلغاء تنشيط السؤال بدلاً من حذفه.', 'warning')
-        return redirect(url_for('admin_toggle_question_status', competition_id=competition.id, question_id=question_id, action='deactivate'))
+        flash(f'لا يمكن حذف هذا السؤال لأنه مرتبط بـ {participations_with_answers} مشاركة مكتملة. يمكنك إلغاء تنشيط السؤال بدلاً من حذفه.', 'warning')
+        
+        # تمرير معلومات عن المشاركات من خلال session
+        session['linked_participations'] = {
+            'count': participations_with_answers,
+            'users': participants_usernames[:10], # الحد الأقصى 10 مستخدمين لتجنب زيادة حجم الجلسة
+            'has_more': len(participants_usernames) > 10
+        }
+        
+        return redirect(url_for('admin_competition_questions', competition_id=competition.id, highlight_question=question_id))
     
     try:
         # حذف السؤال

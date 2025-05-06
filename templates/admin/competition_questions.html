@@ -3,6 +3,65 @@
 {% block title %}أسئلة المسابقة - لوحة التحكم{% endblock %}
 
 {% block content %}
+<!-- نافذة تفاصيل الروابط -->
+{% if session.get('linked_participations') %}
+<div class="modal fade" id="linkedDetailsModal" tabindex="-1" aria-labelledby="linkedDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="linkedDetailsModalLabel">تفاصيل الارتباطات</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>لا يمكن حذف هذا السؤال</strong> لأنه مرتبط بـ {{ session['linked_participations']['count'] }} مشاركة مكتملة.
+                </div>
+                
+                <h6 class="mt-3">المستخدمون المرتبطون:</h6>
+                <ul class="list-group mb-3">
+                    {% for user in session['linked_participations']['users'] %}
+                    <li class="list-group-item">{{ user }}</li>
+                    {% endfor %}
+                    
+                    {% if session['linked_participations']['has_more'] %}
+                    <li class="list-group-item text-muted">...والمزيد</li>
+                    {% endif %}
+                </ul>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>بدلاً من الحذف:</strong> يمكنك إلغاء تنشيط السؤال لإخفائه من المسابقات المستقبلية مع الحفاظ على البيانات التاريخية.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                <a href="javascript:void(0)" id="deactivateQuestionLink" class="btn btn-warning">
+                    <i class="fas fa-eye-slash me-1"></i> إلغاء تنشيط السؤال
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // عرض نافذة التفاصيل تلقائيًا
+    var linkedDetailsModal = new bootstrap.Modal(document.getElementById('linkedDetailsModal'));
+    linkedDetailsModal.show();
+    
+    // إعداد رابط إلغاء التنشيط
+    const highlightedQuestionId = "{{ request.args.get('highlight_question', '') }}";
+    if (highlightedQuestionId) {
+        const deactivateLink = document.getElementById('deactivateQuestionLink');
+        if (deactivateLink) {
+            deactivateLink.href = "{{ url_for('admin_toggle_question_status', competition_id=competition.id, question_id=0, action='deactivate') }}".replace('/0/', `/${highlightedQuestionId}/`);
+        }
+    }
+});
+</script>
+{% endif %}
+
 <div class="card shadow mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div>
