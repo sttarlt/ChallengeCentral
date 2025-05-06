@@ -587,7 +587,20 @@ def submit_answers(competition_id):
         # إشعار المستخدم بالنتيجة
         flash(f'تم تقديم إجاباتك بنجاح! حصلت على {total_score} نقطة ({correct_answers} من {total_questions} إجابات صحيحة)', 'success')
         
-        # إضافة نقاط المكافأة إذا كانت هناك نقاط للمسابقة
+        # أولا: إضافة نقاط الأسئلة التي تمت الإجابة عليها بشكل صحيح
+        if total_score > 0:
+            success = current_user.add_points(
+                points=total_score,
+                transaction_type='competition_question_points',
+                related_id=competition.id,
+                description=f'نقاط الإجابات الصحيحة في مسابقة: {competition.title}',
+                request=request
+            )
+            
+            if success:
+                flash(f'تهانينا! لقد كسبت {total_score} كربتو من الإجابات الصحيحة', 'success')
+        
+        # ثانيا: إضافة نقاط المكافأة الإضافية إذا كانت هناك نقاط للمسابقة
         if competition.points > 0:
             # تحديد النقاط بناءً على نسبة الإجابات الصحيحة
             if total_questions > 0:
@@ -611,7 +624,7 @@ def submit_answers(competition_id):
                     )
                     
                     if success:
-                        flash(f'تهانينا! لقد كسبت {reward_points} كربتو كمكافأة على أدائك الجيد في المسابقة', 'success')
+                        flash(f'تهانينا! لقد كسبت {reward_points} كربتو إضافية كمكافأة على أدائك الجيد في المسابقة', 'success')
         
         return redirect(url_for('competition_details', competition_id=competition.id))
     except Exception as e:
