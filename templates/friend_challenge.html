@@ -2,6 +2,11 @@
 
 {% block title %}تحدي الصديق{% endblock %}
 
+{% block head %}
+<!-- إضافة ملف JavaScript المخصص لصفحة تحدي الصديق -->
+<script src="{{ url_for('static', filename='js/friend_challenge.js') }}"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
@@ -72,7 +77,7 @@
                                         <div class="d-flex gap-2 flex-wrap">
                                             <!-- زر نسخ مع تأثير بصري - المطور لبيئة Replit -->
                                             <button id="copyButton" class="btn btn-primary flex-grow-1 position-relative" 
-                                                    type="button" onclick="copyReferralLink()">
+                                                    type="button">
                                                 <span class="d-flex align-items-center justify-content-center">
                                                     <i class="bi bi-clipboard me-1"></i> 
                                                     <span id="copyButtonText">نسخ الرابط</span>
@@ -81,17 +86,14 @@
                                                       role="status" style="display: none; right: 10px;"></span>
                                             </button>
                                             
-                                            <!-- زر نسخ يدوي احتياطي -->
-                                            <button class="btn btn-outline-primary" 
-                                                   type="button" 
-                                                   onclick="document.getElementById('referralLink').select();">
+                                            <!-- زر نسخ يدوي احتياطي مع معرف واضح -->
+                                            <button id="selectTextButton" class="btn btn-outline-primary" type="button">
                                                 <i class="bi bi-cursor-text"></i>
                                                 <span class="d-none d-md-inline-block">تحديد النص</span>
                                             </button>
 
-                                            <!-- زر مشاركة واتساب مُحسن مع رسالة مخصصة - محوّل لزر بدلاً من رابط -->
+                                            <!-- زر مشاركة واتساب مُحسن مع رسالة مخصصة -->
                                             <button id="whatsappShareButton" type="button"
-                                               onclick="shareViaWhatsApp(event)"
                                                class="btn btn-success flex-grow-1 d-flex align-items-center justify-content-center gap-1">
                                                 <i class="bi bi-whatsapp"></i>
                                                 <span>مشاركة واتساب</span>
@@ -781,17 +783,6 @@ ${referralLink}`;
             </div>
         `;
         
-        // تحديث مظهر الزر
-        whatsappButton.disabled = false;
-        whatsappButton.className = 'btn btn-warning flex-grow-1 d-flex align-items-center justify-content-center gap-1';
-        whatsappButton.innerHTML = '<i class="bi bi-hand-index"></i> <span>النسخ اليدوي</span>';
-        
-        // تغيير وظيفة الزر للمساعدة في النسخ اليدوي
-        whatsappButton.onclick = function() {
-            referralField.select();
-            messageElement.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i> حدد النص واضغط Ctrl+C لنسخه';
-        };
-    }
-}
-</script>
+{% block js %}
+<!-- تم نقل جميع وظائف جافاسكريبت إلى الملف الخارجي friend_challenge.js -->
 {% endblock %}
