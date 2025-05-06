@@ -252,133 +252,238 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * وظيفة رئيسية لنسخ رابط الإحالة - محسنة ومتوافقة مع بيئة Replit
+ * وظيفة متطورة ومحسنة لنسخ رابط الإحالة
+ * مع دعم كامل لبيئة Replit المقيدة وجميع المتصفحات الحديثة والقديمة
  */
 function copyReferralLink() {
-    console.log("بدء محاولة نسخ الرابط...");
+    console.log("بدء عملية نسخ الرابط...");
     
-    // 1. الحصول على عناصر واجهة المستخدم
+    // 1. تأمين الوصول إلى العناصر
     var textarea = document.getElementById("referralLink");
+    if (!textarea) {
+        console.error("خطأ: لم يتم العثور على عنصر الرابط");
+        showFeedback(false, "حدث خطأ في النظام. يرجى المحاولة مرة أخرى.");
+        return;
+    }
     
     // 2. إظهار مؤشر التحميل وتغيير حالة الزر
     showCopyInProgress(true);
     
-    // 3. الحصول على النص بشكل صحيح
-    var textToCopy = "";
-    if (textarea) {
-        textToCopy = textarea.value.trim();
-    }
-    
-    // التأكد من وجود نص للنسخ
+    // 3. استخراج النص المراد نسخه
+    var textToCopy = textarea.value.trim();
     if (!textToCopy) {
-        console.error("لا يوجد نص للنسخ!");
-        showFeedback(false, "خطأ: لا يوجد رابط للنسخ");
+        console.error("خطأ: لا يوجد نص للنسخ");
+        showFeedback(false, "لا يوجد رابط للنسخ!");
         showCopyInProgress(false);
         return;
     }
     
-    console.log("النص المراد نسخه:", textToCopy);
-    
-    /**
-     * مشكلة أساسية: بيئة Replit تعمل في Sandbox مقيد يمنع الوصول إلى Clipboard API
-     * الحل: تحديد النص وعرض رسالة للمستخدم تطلب منه نسخه يدويًا
-     * مع إضافة مؤثرات بصرية لتوجيه المستخدم
-     */
-    
-    // محاولة تحديد النص بعدة طرق لضمان العمل في أكثر المتصفحات والأجهزة
+    // 4. تحديد النص في كل الحالات (مفيد للنسخ اليدوي)
     textarea.focus();
     textarea.select();
+    
+    // 5. إضافة تأثير بصري واضح للمستخدم
+    addVisualHighlight(textarea);
+    
+    /**
+     * 6. تحديد بيئة التشغيل - التحقق من بيئة Replit بطريقتين:
+     *   أ. فحص اسم المضيف (hostname)
+     *   ب. اختبار إمكانية الوصول إلى الحافظة (clipboard API)
+     */
+    var isReplit = detectReplitEnvironment();
+    console.log("هل نحن في بيئة Replit؟", isReplit ? "نعم" : "لا");
+    
+    // 7. نهج مختلف حسب البيئة
+    if (isReplit) {
+        // معالجة خاصة لبيئة Replit المقيدة
+        handleReplitCopy(textarea, textToCopy);
+    } else {
+        // معالجة قياسية للمتصفحات العادية
+        handleStandardCopy(textarea, textToCopy);
+    }
+}
 
-    // إضافة تأثير بصري قوي للفت انتباه المستخدم
-    textarea.classList.add("border-primary", "bg-light");
+/**
+ * اكتشاف بيئة Replit بطرق متعددة للتأكد من الدقة
+ */
+function detectReplitEnvironment() {
+    // طريقة 1: التحقق من اسم النطاق
+    var isReplitDomain = window.location.hostname.includes('replit') || 
+                         window.location.hostname.includes('repl.co');
     
-    // في وضع Replit: استخدام الطريقة المعدلة لمعالجة القيود
-    var isInReplitEnv = window.location.hostname.includes('replit');
+    // طريقة 2: التحقق من سياق الأمان (Replit يستخدم HTTP غير آمن داخليًا)
+    var isInsecureContext = window.isSecureContext === false;
     
-    if (isInReplitEnv) {
-        // في بيئة Replit: تحديد النص وتوجيه المستخدم للنسخ يدويًا
-        console.log("تم اكتشاف بيئة Replit - استخدام الوضع المتوافق");
+    // طريقة 3: محاولة الكشف عن قيود الـ Sandbox
+    var hasSandboxRestrictions = false;
+    try {
+        // تحقق من إمكانية الوصول إلى سياق الأمان
+        if (navigator.clipboard === undefined && document.execCommand === undefined) {
+            hasSandboxRestrictions = true;
+        }
+    } catch (e) {
+        hasSandboxRestrictions = true;
+    }
+    
+    // اتخاذ القرار النهائي - نعتبر البيئة هي Replit إذا تطابق أي من الشروط
+    return isReplitDomain || isInsecureContext || hasSandboxRestrictions;
+}
+
+/**
+ * أسلوب خاص للتعامل مع النسخ في بيئة Replit المقيدة
+ */
+function handleReplitCopy(textarea, textToCopy) {
+    console.log("استخدام طريقة النسخ الخاصة ببيئة Replit...");
+    
+    // 1. زيادة وضوح التأثير البصري
+    textarea.style.backgroundColor = "#e8f4ff";
+    textarea.style.color = "#0d6efd";
+    textarea.style.fontWeight = "bold";
+    
+    // 2. رسالة واضحة للمستخدم
+    showFeedback(true, "تم تحديد الرابط! استخدم Ctrl+C (أو Cmd+C على Mac) لنسخه");
+    
+    // 3. تحديد النص مرة أخرى للتأكد (خاصة لأجهزة الموبايل)
+    var selectionInterval = setInterval(function() {
+        textarea.select();
+    }, 500);
+    
+    // 4. إيقاف التحديد المتكرر بعد 5 ثوان
+    setTimeout(function() {
+        clearInterval(selectionInterval);
         
-        // إظهار رسالة توجيه للمستخدم
-        showFeedback(true, "تم تحديد الرابط! انسخه باستخدام Ctrl+C (أو Cmd+C)");
+        // 5. عرض نصيحة إضافية إذا كان التحديد لا يزال نشطًا
+        if (document.activeElement === textarea) {
+            showFeedback(true, "تم تحديد الرابط! استمر بالضغط على Ctrl+C (أو Cmd+C) لنسخه");
+        }
         
-        // إضافة تأثير بصري لتحديد النص 
-        textarea.style.backgroundColor = "#e8f4ff";
-        textarea.style.color = "#0d6efd";
-        
-        // إظهار علامة نجاح للمستخدم
-        showCopyInProgress(false, true);
-        
-        // إعادة التحديد للتأكد من استمرار تحديد النص
+        // 6. إزالة التأثيرات البصرية ببطء
         setTimeout(function() {
-            textarea.select();
-        }, 100);
-        
-        // العودة إلى الوضع الطبيعي بعد عدة ثوان
-        setTimeout(function() {
-            textarea.classList.remove("border-primary", "bg-light");
+            textarea.style.transition = "all 0.5s ease";
             textarea.style.backgroundColor = "";
             textarea.style.color = "";
-        }, 5000);
-        
-        return;
-    }
+            textarea.style.fontWeight = "";
+        }, 2000);
+    }, 5000);
     
-    // خارج بيئة Replit: محاولة استخدام الطرق العادية
-    // (تنفيذ هذا الكود فقط خارج بيئة Replit لتجنب الأخطاء)
-    try {
-        // طريقة 1: محاولة استخدام navigator.clipboard API
-        if (navigator && navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(textToCopy)
-                .then(function() {
-                    console.log("تم النسخ بنجاح باستخدام Clipboard API");
-                    showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
-                    showCopyInProgress(false, true);
-                })
-                .catch(function(error) {
-                    console.warn("فشل Clipboard API، استخدام الطريقة البديلة");
-                    useExecCommand();
-                });
-        } else {
-            useExecCommand();
-        }
-    } catch (error) {
-        console.error("خطأ غير متوقع: ", error);
-        useExecCommand();
-    }
+    // 7. تغيير حالة الزر للنجاح
+    showCopyInProgress(false, true);
     
-    // طريقة 2: استخدام الأمر التقليدي execCommand
-    function useExecCommand() {
-        try {
-            var successful = document.execCommand('copy');
-            if (successful) {
-                console.log("تم النسخ بنجاح باستخدام execCommand");
-                showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
-                showCopyInProgress(false, true);
+    // 8. إضافة مستمع حدث لاكتشاف نجاح النسخ
+    document.addEventListener('copy', function onCopySuccess() {
+        showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
+        document.removeEventListener('copy', onCopySuccess);
+    }, { once: true });
+}
+
+/**
+ * أسلوب عام للتعامل مع النسخ في المتصفحات القياسية
+ */
+function handleStandardCopy(textarea, textToCopy) {
+    console.log("استخدام طرق النسخ القياسية...");
+    
+    // محاولة النسخ بثلاث طرق متتالية
+    tryClipboardAPI()
+        .catch(function() {
+            return tryExecCommand();
+        })
+        .catch(function() {
+            return tryFallbackMethod();
+        })
+        .then(function(method) {
+            console.log("تم النسخ بنجاح باستخدام:", method);
+            showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
+            showCopyInProgress(false, true);
+        })
+        .catch(function(error) {
+            console.error("فشلت جميع محاولات النسخ:", error);
+            // التحويل إلى طريقة النسخ اليدوي كحل أخير
+            handleReplitCopy(textarea, textToCopy);
+        });
+    
+    // 1. الطريقة الأولى: استخدام Clipboard API الحديثة
+    function tryClipboardAPI() {
+        return new Promise(function(resolve, reject) {
+            if (navigator && navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textToCopy)
+                    .then(function() {
+                        resolve("Clipboard API");
+                    })
+                    .catch(reject);
             } else {
-                console.warn("فشل execCommand، عرض رسالة للمستخدم");
-                showManualCopyMessage();
+                reject("Clipboard API غير متوفرة");
             }
-        } catch (error) {
-            console.error("خطأ في نسخ النص: ", error);
-            showManualCopyMessage();
-        }
+        });
     }
     
-    // عرض رسالة للنسخ اليدوي عند فشل كل الطرق
-    function showManualCopyMessage() {
-        // تحديد النص مرة أخرى
-        textarea.select();
-        
-        // عرض رسالة توجيهية
-        showFeedback(false, "يرجى استخدام Ctrl+C (أو Cmd+C) لنسخ الرابط يدويًا");
-        showCopyInProgress(false);
+    // 2. الطريقة الثانية: استخدام document.execCommand
+    function tryExecCommand() {
+        return new Promise(function(resolve, reject) {
+            try {
+                textarea.select();
+                var success = document.execCommand('copy');
+                if (success) {
+                    resolve("execCommand");
+                } else {
+                    reject("فشل execCommand");
+                }
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
     
-    // إزالة التأثير البصري بعد فترة
+    // 3. الطريقة الثالثة: طريقة احتياطية باستخدام عنصر مؤقت
+    function tryFallbackMethod() {
+        return new Promise(function(resolve, reject) {
+            try {
+                var tempElement = document.createElement("textarea");
+                tempElement.value = textToCopy;
+                tempElement.style.position = "fixed";
+                tempElement.style.opacity = "0";
+                document.body.appendChild(tempElement);
+                
+                tempElement.focus();
+                tempElement.select();
+                
+                var success = document.execCommand('copy');
+                document.body.removeChild(tempElement);
+                
+                if (success) {
+                    resolve("fallback method");
+                } else {
+                    reject("فشلت الطريقة الاحتياطية");
+                }
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+}
+
+/**
+ * إضافة تأثير بصري محسن لجذب انتباه المستخدم
+ */
+function addVisualHighlight(element) {
+    // إضافة تأثير وميض للفت الانتباه
+    element.classList.add("border-primary");
+    
+    var originalBg = element.style.backgroundColor;
+    var originalColor = element.style.color;
+    
+    // تأثير وميض خفيف
+    element.style.transition = "background-color 0.3s ease";
+    element.style.backgroundColor = "#e8f4ff";
+    
     setTimeout(function() {
-        textarea.classList.remove("border-primary", "bg-light");
-    }, 2000);
+        element.style.backgroundColor = originalBg;
+        
+        // عودة تدريجية للمظهر الطبيعي
+        setTimeout(function() {
+            element.classList.remove("border-primary");
+            element.style.transition = "";
+        }, 2000);
+    }, 300);
 }
 
 /**
