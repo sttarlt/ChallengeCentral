@@ -181,16 +181,60 @@ function copyReferralLink() {
     copyText.select();
     copyText.setSelectionRange(0, 99999); // For mobile devices
     
-    navigator.clipboard.writeText(copyText.value);
-    
-    // Show the copied message
+    // محاولة استخدام واجهة برمجة الحافظة الحديثة
+    if (navigator.clipboard && window.isSecureContext) {
+        // بيئة آمنة، استخدام واجهة برمجة الحافظة الحديثة
+        navigator.clipboard.writeText(copyText.value)
+            .then(() => showCopySuccess())
+            .catch(() => fallbackCopyMethod(copyText));
+    } else {
+        // طريقة بديلة للمتصفحات القديمة أو البيئات غير الآمنة
+        fallbackCopyMethod(copyText);
+    }
+}
+
+// طريقة بديلة للنسخ تعمل في معظم المتصفحات
+function fallbackCopyMethod(copyText) {
+    try {
+        // محاولة النسخ باستخدام أمر document.execCommand (الطريقة القديمة)
+        var successful = document.execCommand('copy');
+        if (successful) {
+            showCopySuccess();
+        } else {
+            showManualCopyMessage();
+        }
+    } catch (err) {
+        console.error('فشل النسخ:', err);
+        showManualCopyMessage();
+    }
+}
+
+// إظهار رسالة النجاح
+function showCopySuccess() {
     var copyMessage = document.getElementById("copyMessage");
+    copyMessage.innerHTML = '<i class="bi bi-check-circle"></i> تم نسخ الرابط!';
     copyMessage.classList.remove("d-none");
+    copyMessage.classList.remove("text-warning");
+    copyMessage.classList.add("text-success");
     
-    // Hide the message after 2 seconds
+    // إخفاء الرسالة بعد ثانيتين
     setTimeout(function() {
         copyMessage.classList.add("d-none");
     }, 2000);
+}
+
+// إظهار رسالة للنسخ اليدوي في حالة فشل جميع الطرق
+function showManualCopyMessage() {
+    var copyMessage = document.getElementById("copyMessage");
+    copyMessage.innerHTML = '<i class="bi bi-exclamation-circle"></i> يرجى الضغط Ctrl+C لنسخ الرابط';
+    copyMessage.classList.remove("d-none");
+    copyMessage.classList.remove("text-success");
+    copyMessage.classList.add("text-warning");
+    
+    // إخفاء الرسالة بعد أربع ثوان (للسماح بوقت أطول للقراءة)
+    setTimeout(function() {
+        copyMessage.classList.add("d-none");
+    }, 4000);
 }
 </script>
 {% endblock %}
