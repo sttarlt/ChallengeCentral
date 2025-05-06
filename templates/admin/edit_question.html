@@ -166,20 +166,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // التحكم في ظهور واختفاء قسم الخيارات بناءً على نوع السؤال
     const questionTypeSelect = document.getElementById('question_type');
     const optionsSection = document.getElementById('optionsSection');
+    const imageSection = document.getElementById('imageSection');
+    const imagePreview = document.getElementById('imagePreview');
+    const imageUrl = document.getElementById('image_url');
+    const questionImage = document.getElementById('questionImage');
     const correctAnswerHelp = document.getElementById('correctAnswerHelp');
     
     function updateFormFields() {
         const selectedType = questionTypeSelect.value;
         
         // تحديث قسم الخيارات
-        if (selectedType === 'multiple_choice') {
+        if (selectedType === 'multiple_choice' || selectedType === 'image_choice') {
             optionsSection.style.display = 'block';
         } else {
             optionsSection.style.display = 'none';
         }
         
         // تحديث نص المساعدة للإجابة الصحيحة
-        if (selectedType === 'multiple_choice') {
+        if (selectedType === 'multiple_choice' || selectedType === 'image_choice') {
             correctAnswerHelp.innerHTML = 'أدخل رقم الخيار الصحيح من القائمة (0 للخيار الأول، 1 للثاني، إلخ).';
         } else if (selectedType === 'true_false') {
             correctAnswerHelp.innerHTML = 'أدخل "true" للصح أو "false" للخطأ.';
@@ -188,11 +192,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // معاينة الصورة عند إدخال رابط
+    function updateImagePreview() {
+        const url = imageUrl.value.trim();
+        if (url) {
+            questionImage.src = url;
+            imagePreview.style.display = 'block';
+        } else {
+            imagePreview.style.display = 'none';
+        }
+    }
+    
     // تعيين الحالة الأولية
     updateFormFields();
+    updateImagePreview();
     
     // تحديث الحقول عند تغيير نوع السؤال
     questionTypeSelect.addEventListener('change', updateFormFields);
+    
+    // تحديث معاينة الصورة عند تغيير الرابط
+    imageUrl.addEventListener('input', updateImagePreview);
+    imageUrl.addEventListener('change', updateImagePreview);
+    
+    // معالجة أخطاء تحميل الصورة
+    questionImage.addEventListener('error', function() {
+        if (imageUrl.value.trim()) {
+            questionImage.src = 'https://via.placeholder.com/400x300?text=رابط+صورة+غير+صالح';
+        }
+    });
 });
 </script>
 {% endblock %}
