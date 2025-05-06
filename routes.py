@@ -1424,22 +1424,39 @@ def admin_delete_question(competition_id, question_id):
     if question.competition_id != competition.id:
         flash('السؤال غير موجود في هذه المسابقة', 'danger')
         return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+        
+    # التحقق مما إذا كانت هناك مشاركات تستخدم هذا السؤال
+    # يمكن استخدام البحث في مشاركات المسابقة بدلاً من فحص الإجابات مباشرة
+    participations_with_answers = Participation.query.filter(
+        Participation.competition_id == competition_id,
+        Participation.completed == True
+    ).count()
     
-    # حذف السؤال
-    db.session.delete(question)
-    db.session.commit()
+    if participations_with_answers > 0:
+        flash('لا يمكن حذف هذا السؤال لأنه مرتبط بمشاركات مكتملة. يمكنك إلغاء تنشيط السؤال بدلاً من حذفه.', 'warning')
+        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
     
-    # تسجيل الحدث
-    log_audit_event(
-        event_type='MANAGEMENT_ACTION',
-        severity='WARNING',
-        details=f"تم حذف سؤال من المسابقة: {competition.title}",
-        user_id=current_user.id,
-        username=current_user.username,
-        ip_address=request.remote_addr
-    )
+    try:
+        # حذف السؤال
+        db.session.delete(question)
+        db.session.commit()
+        
+        # تسجيل الحدث
+        log_audit_event(
+            event_type='MANAGEMENT_ACTION',
+            severity='WARNING',
+            details=f"تم حذف سؤال من المسابقة: {competition.title}",
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=request.remote_addr
+        )
+        
+        flash('تم حذف السؤال بنجاح', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"خطأ عند حذف السؤال: {str(e)}")
+        flash(f'حدث خطأ أثناء محاولة حذف السؤال: {str(e)}', 'danger')
     
-    flash('تم حذف السؤال بنجاح', 'success')
     return redirect(url_for('admin_competition_questions', competition_id=competition.id))
 
 
