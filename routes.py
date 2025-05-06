@@ -531,6 +531,14 @@ def submit_answers(competition_id):
     total_score = 0
     correct_answers = 0
     total_questions = 0
+    bonus_points = 0
+    time_bonus = 0
+    penalties = 0
+    time_expired = 'time_expired' in request.form
+    elapsed_time = int(request.form.get('elapsed_time', 0))
+    
+    # ستخزن نتائج الإجابات لعرضها في صفحة النتائج
+    results = []
     
     try:
         # التحقق من وجود المسابقة
