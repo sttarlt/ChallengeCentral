@@ -57,14 +57,28 @@
                             <div class="card h-100 border-primary">
                                 <div class="card-body">
                                     <h5 class="card-title">رابط الدعوة الخاص بك</h5>
-                                    <div class="input-group mb-3">
-                                        <input type="text" class="form-control" id="referralLink" value="{{ referral_url }}" readonly>
-                                        <button class="btn btn-outline-primary" type="button" onclick="copyReferralLink()">
-                                            <i class="bi bi-clipboard"></i> نسخ
-                                        </button>
+                                    <div class="mb-3">
+                                        <!-- استخدام عنصر textarea عوضًا عن input -->
+                                        <div class="form-floating mb-2">
+                                            <textarea class="form-control" id="referralLink" style="height: 80px; direction: ltr; text-align: left;" readonly>{{ referral_url }}</textarea>
+                                            <label for="referralLink">رابط الدعوة</label>
+                                        </div>
+                                        
+                                        <!-- تقسيم الوظائف - زر للنسخ وزر آخر للمشاركة -->
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-primary flex-grow-1" type="button" onclick="copyReferralLink()">
+                                                <i class="bi bi-clipboard"></i> نسخ الرابط
+                                            </button>
+                                            <!-- زر مشاركة بديل -->
+                                            <a href="https://wa.me/?text={{ referral_url | urlencode }}" target="_blank" class="btn btn-success flex-grow-1">
+                                                <i class="bi bi-share"></i> مشاركة واتساب
+                                            </a>
+                                        </div>
                                     </div>
-                                    <div id="copyMessage" class="text-success small d-none">
-                                        <i class="bi bi-check-circle"></i> تم نسخ الرابط!
+                                    
+                                    <!-- رسالة أوضح وأكبر عند النسخ -->
+                                    <div id="copyMessage" class="alert alert-success d-none my-2 py-2">
+                                        <i class="bi bi-check-circle-fill"></i> تم نسخ الرابط بنجاح!
                                     </div>
                                 </div>
                             </div>
@@ -176,71 +190,113 @@
 
 {% block js %}
 <script>
-// حل بطريقة خاصة لمعالجة النسخ في بيئة Replit
+/**
+ * وظيفة محسنة لنسخ رابط الإحالة المتوافقة مع معظم المتصفحات والبيئات
+ * بما في ذلك بيئة Replit المحدودة
+ */
 function copyReferralLink() {
-    // 1. إنشاء عنصر textarea مؤقت
-    var tempTextarea = document.createElement("textarea");
-    var referralLink = document.getElementById("referralLink").value;
+    // الحصول على نص الرابط - انتبه أننا نستخدم value مع input و innerHTML مع textarea
+    var referralTextArea = document.getElementById("referralLink");
+    var referralLink = referralTextArea.value || referralTextArea.innerHTML;
     
-    // 2. تعيين قيمة النص وخصائص العنصر
-    tempTextarea.value = referralLink;
-    tempTextarea.style.position = "fixed";  // منع التمرير للعنصر
-    tempTextarea.style.opacity = "0";       // جعله غير مرئي
-    tempTextarea.style.width = "1px";
-    tempTextarea.style.height = "1px";
-    tempTextarea.style.left = "-9999px";    // وضعه خارج الشاشة
+    // تمييز محتوى textarea بالكامل لمساعدة المستخدم
+    referralTextArea.focus();
+    referralTextArea.select();
     
-    // 3. إضافة العنصر إلى الصفحة
-    document.body.appendChild(tempTextarea);
+    // تجربة خطوات متعددة للنسخ حسب دعم المتصفح
     
-    // 4. تحديد النص داخل العنصر
-    tempTextarea.focus();
-    tempTextarea.select();
-    
+    // 1. تجربة الخطوة الأولى - واجهة Clipboard API الحديثة
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(referralLink)
+            .then(() => {
+                // نجاح الطريقة الحديثة
+                showFeedback(true, "تم نسخ الرابط بنجاح!");
+            })
+            .catch((e) => {
+                console.log("طريقة clipboard API فشلت:", e);
+                // تجربة الطريقة الاحتياطية
+                copyWithExecCommand(referralTextArea, referralLink);
+            });
+    } else {
+        // 2. استخدام الطريقة القديمة - execCommand
+        copyWithExecCommand(referralTextArea, referralLink);
+    }
+}
+
+/**
+ * طريقة احتياطية باستخدام الأمر القديم لنسخ النص المحدد
+ */
+function copyWithExecCommand(element, text) {
+    // محاولة النسخ المباشر للنص المحدد
     try {
-        // 5. محاولة النسخ باستخدام الأمر القديم (الأكثر توافقًا)
         var successful = document.execCommand('copy');
-        
         if (successful) {
-            showSuccessMessage();
+            showFeedback(true, "تم نسخ الرابط!");
         } else {
-            showManualInstructions();
+            // إنشاء textarea مؤقتة لمحاولة أخرى
+            fallbackCopyMethod(text);
         }
     } catch (err) {
-        console.error('فشل في نسخ النص: ', err);
-        showManualInstructions();
+        console.error('فشل في نسخ النص المحدد مباشرة:', err);
+        fallbackCopyMethod(text);
+    }
+}
+
+/**
+ * طريقة النسخ الاحتياطية النهائية باستخدام عنصر مؤقت
+ */
+function fallbackCopyMethod(text) {
+    // إنشاء عنصر نصي مؤقت
+    var tempInput = document.createElement("textarea");
+    tempInput.value = text;
+    tempInput.style.position = "fixed";
+    tempInput.style.opacity = "0";
+    tempInput.style.top = "0";
+    
+    // إضافته للصفحة وتحديده ومحاولة النسخ
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    
+    try {
+        var successful = document.execCommand('copy');
+        if (successful) {
+            showFeedback(true, "تم نسخ الرابط!");
+        } else {
+            showFeedback(false, "تعذر نسخ الرابط تلقائيًا. يرجى تحديده ونسخه يدويًا.");
+        }
+    } catch (err) {
+        console.error('فشل جميع محاولات النسخ:', err);
+        showFeedback(false, "تعذر نسخ الرابط. يرجى تحديده بنفسك واستخدام Ctrl+C (أو Cmd+C) لنسخه.");
     }
     
-    // 6. تنظيف - إزالة العنصر المؤقت
-    document.body.removeChild(tempTextarea);
+    // إزالة العنصر المؤقت
+    document.body.removeChild(tempInput);
 }
 
-// عرض رسالة النجاح
-function showSuccessMessage() {
+/**
+ * عرض تنبيه للمستخدم بنتيجة عملية النسخ
+ */
+function showFeedback(success, message) {
     var copyMessage = document.getElementById("copyMessage");
-    copyMessage.innerHTML = '<i class="bi bi-check-circle"></i> تم نسخ الرابط بنجاح!';
-    copyMessage.classList.remove("d-none");
-    copyMessage.classList.remove("text-warning");
-    copyMessage.classList.add("text-success");
     
-    // إخفاء بعد ثانيتين
+    // تحديد نوع ومظهر الرسالة
+    if (success) {
+        copyMessage.classList.remove("alert-warning");
+        copyMessage.classList.add("alert-success");
+        copyMessage.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + message;
+    } else {
+        copyMessage.classList.remove("alert-success");
+        copyMessage.classList.add("alert-warning");
+        copyMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + message;
+    }
+    
+    // إظهار الرسالة
+    copyMessage.classList.remove("d-none");
+    
+    // إخفاء الرسالة بعد وقت مناسب
     setTimeout(function() {
         copyMessage.classList.add("d-none");
-    }, 2000);
-}
-
-// عرض تعليمات النسخ اليدوي إذا فشل النسخ التلقائي
-function showManualInstructions() {
-    var copyMessage = document.getElementById("copyMessage");
-    copyMessage.innerHTML = '<i class="bi bi-exclamation-circle"></i> يرجى استخدام Ctrl+C (أو Cmd+C) لنسخ الرابط';
-    copyMessage.classList.remove("d-none");
-    copyMessage.classList.remove("text-success");
-    copyMessage.classList.add("text-warning");
-    
-    // وقت أطول للقراءة
-    setTimeout(function() {
-        copyMessage.classList.add("d-none");
-    }, 4000);
+    }, success ? 2000 : 4000);
 }
 </script>
 {% endblock %}
