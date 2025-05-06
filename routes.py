@@ -571,19 +571,29 @@ def submit_answers(competition_id):
                 
                 # الإجابة الصحيحة تعتمد على نوع السؤال
                 if question.question_type == 'multiple_choice':
-                    # تحويل الإجابة المستلمة من رقم لنص
+                    # الحصول على خيارات السؤال
+                    options = question.options_list
+                    app.logger.debug(f"خيارات السؤال: {options}")
+                    
                     try:
+                        # تحويل إجابة المستخدم إلى رقم
                         option_index = int(user_answer)
-                        options = question.options_list
+                        
+                        # الحصول على نص الخيار الذي اختاره المستخدم (كنص)
                         if 0 <= option_index < len(options):
-                            if str(option_index) == question.correct_answer:
+                            selected_text = options[option_index]
+                            
+                            # مقارنة النص مع الإجابة الصحيحة المخزنة
+                            if selected_text.strip().lower() == question.correct_answer.strip().lower():
                                 total_score += question.points
                                 correct_answers += 1
-                                app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
+                                app.logger.debug(f"إجابة صحيحة! خيار {option_index} = '{selected_text}' +{question.points} نقاط")
                             else:
-                                app.logger.debug(f"إجابة خاطئة. الصحيحة هي: {question.correct_answer}")
-                    except (ValueError, TypeError) as e:
-                        app.logger.error(f"خطأ في تحويل قيمة الإجابة: {str(e)}")
+                                app.logger.debug(f"إجابة خاطئة. اختار المستخدم: '{selected_text}' والصحيحة هي: '{question.correct_answer}'")
+                        else:
+                            app.logger.warning(f"مؤشر خارج النطاق: {option_index} لسؤال يحتوي على {len(options)} خيارات")
+                    except (ValueError, TypeError, IndexError) as e:
+                        app.logger.error(f"خطأ في معالجة إجابة الاختيار المتعدد: {str(e)}")
                         
                 elif question.question_type == 'true_false':
                     if user_answer == question.correct_answer:
@@ -591,7 +601,7 @@ def submit_answers(competition_id):
                         correct_answers += 1
                         app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
                     else:
-                        app.logger.debug(f"إجابة خاطئة. الصحيحة هي: {question.correct_answer}")
+                        app.logger.debug(f"إجابة خاطئة. اختار المستخدم: '{user_answer}' والصحيحة هي: '{question.correct_answer}'")
                         
                 elif question.question_type == 'text':
                     # مقارنة بسيطة للإجابة النصية
@@ -600,7 +610,7 @@ def submit_answers(competition_id):
                         correct_answers += 1
                         app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
                     else:
-                        app.logger.debug(f"إجابة خاطئة. الصحيحة هي: {question.correct_answer}")
+                        app.logger.debug(f"إجابة خاطئة. كتب المستخدم: '{user_answer}' والصحيحة هي: '{question.correct_answer}'")
             else:
                 app.logger.debug(f"لم يتم العثور على إجابة للسؤال {question.id}")
         
