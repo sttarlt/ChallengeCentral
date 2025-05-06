@@ -206,23 +206,49 @@
 {% block js %}
 <script>
 /**
- * وظيفة محسنة لنسخ رابط الإحالة متوافقة مع بيئة Replit والمتصفحات المختلفة
- * تستخدم طرقًا متعددة وتعالج حالات الخطأ بشكل أفضل
+ * الإعداد المبدئي - تشغيل الشيفرة عند تحميل الصفحة
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("تم تحميل صفحة تحدي الصديق"); 
+    
+    // تحديد النص في مربع الرابط تلقائيًا عند النقر عليه لتسهيل النسخ اليدوي
+    var textarea = document.getElementById("referralLink");
+    if (textarea) {
+        textarea.addEventListener('click', function() {
+            this.select();
+            console.log("تم تحديد نص الرابط بالنقر");
+        });
+    }
+    
+    // تصحيح رابط واتساب ليعمل في كل الأجهزة
+    var whatsappLink = document.querySelector('a[href^="https://wa.me"]');
+    if (whatsappLink && textarea) {
+        var linkValue = textarea.value.trim();
+        if (linkValue) {
+            var encodedText = encodeURIComponent("انضم إلى منصة مسابقاتي واحصل على مكافآت! " + linkValue);
+            whatsappLink.href = "https://wa.me/?text=" + encodedText;
+            console.log("تم تحديث رابط واتساب: " + whatsappLink.href);
+        }
+    }
+});
+
+/**
+ * وظيفة رئيسية لنسخ رابط الإحالة - محسنة ومتوافقة مع بيئة Replit
  */
 function copyReferralLink() {
     console.log("بدء محاولة نسخ الرابط...");
     
-    // عناصر واجهة المستخدم
+    // 1. الحصول على عناصر واجهة المستخدم
     var textarea = document.getElementById("referralLink");
-    var copyButton = document.getElementById("copyButton");
-    var copyButtonText = document.getElementById("copyButtonText");
-    var copySpinner = document.getElementById("copySpinner");
     
-    // إظهار مؤشر التحميل وتغيير حالة الزر
+    // 2. إظهار مؤشر التحميل وتغيير حالة الزر
     showCopyInProgress(true);
     
-    // 1. الحصول على النص بشكل صحيح
-    var textToCopy = textarea.value.trim();
+    // 3. الحصول على النص بشكل صحيح
+    var textToCopy = "";
+    if (textarea) {
+        textToCopy = textarea.value.trim();
+    }
     
     // التأكد من وجود نص للنسخ
     if (!textToCopy) {
@@ -234,167 +260,122 @@ function copyReferralLink() {
     
     console.log("النص المراد نسخه:", textToCopy);
     
-    // تحديد النص بالكامل لتسهيل النسخ اليدوي
+    // 4. تحديد النص في مربع النص لتسهيل النسخ اليدوي
     textarea.focus();
     textarea.select();
     
-    // تأثير بصري على textarea لتوضيح أنه محدد
+    // 5. تأثير بصري على textarea لتوضيح أنه محدد
     textarea.classList.add("border-primary", "bg-light");
     
-    // 2. محاولة النسخ بطرق متعددة حسب دعم المتصفح
-    try {
-        // محاولة استخدام واجهة Clipboard API الحديثة (إذا كان السياق آمنًا)
-        if (navigator.clipboard && window.isSecureContext) {
-            console.log("محاولة استخدام Clipboard API...");
-            
-            navigator.clipboard.writeText(textToCopy)
-                .then(() => {
-                    console.log("تم النسخ بنجاح باستخدام Clipboard API");
-                    showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
-                    showCopyInProgress(false, true);
-                })
-                .catch((error) => {
-                    console.warn("فشل Clipboard API:", error);
-                    // ننتقل للطريقة الاحتياطية
-                    copyWithExecCommand(textToCopy);
-                });
-        } else {
-            // في بيئة Replit غالبًا ما نصل إلى هنا (لا يوجد سياق آمن)
-            console.log("Clipboard API غير متوفرة، استخدام الطريقة البديلة...");
-            copyWithExecCommand(textToCopy);
-        }
-    } catch (e) {
-        console.error("خطأ غير متوقع أثناء نسخ النص:", e);
-        // محاولة الطريقة الأخيرة في حالة فشل كل شيء
-        fallbackCopyMethod(textToCopy);
-    }
-    
-    // إزالة التأثير البصري بعد فترة
-    setTimeout(function() {
-        textarea.classList.remove("border-primary", "bg-light");
-    }, 1500);
-    
-    /**
-     * إظهار أو إخفاء مؤشر التحميل وتغيير نص الزر
-     */
-    function showCopyInProgress(isInProgress, success = false) {
-        if (isInProgress) {
-            // إظهار مؤشر التحميل وتغيير نص الزر
-            copySpinner.style.display = "inline-block";
-            copyButtonText.textContent = "جاري النسخ...";
-            copyButton.disabled = true;
-        } else {
-            // إخفاء مؤشر التحميل واستعادة نص الزر
-            copySpinner.style.display = "none";
-            copyButton.disabled = false;
-            
-            if (success) {
-                // إظهار أيقونة النجاح للحظات
-                copyButtonText.innerHTML = '<i class="bi bi-check-lg me-1"></i> تم النسخ';
-                copyButton.classList.remove("btn-primary");
-                copyButton.classList.add("btn-success");
-                
-                // استعادة الحالة الأصلية بعد فترة
-                setTimeout(function() {
-                    copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
-                    copyButton.classList.remove("btn-success");
-                    copyButton.classList.add("btn-primary");
-                }, 2000);
+    // 6. عملية النسخ في ثلاث خطوات مع معالجة الأخطاء في كل مرحلة
+    var replicationsPromise = new Promise(function(resolve, reject) {
+        try {
+            // طريقة 1: محاولة استخدام واجهة Clipboard API الحديثة
+            if (navigator && navigator.clipboard && window.isSecureContext) {
+                console.log("استخدام طريقة Clipboard API الحديثة");
+                navigator.clipboard.writeText(textToCopy)
+                    .then(function() {
+                        console.log("تم النسخ بنجاح باستخدام Clipboard API");
+                        resolve("clipboard-api");
+                    })
+                    .catch(function(clipboardError) {
+                        console.warn("فشل Clipboard API:", clipboardError);
+                        // انتقال للطريقة التالية
+                        tryExecCommand();
+                    });
             } else {
-                // استعادة النص الأصلي
-                copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
+                console.log("Clipboard API غير مدعومة، جارٍ تجربة الطرق البديلة");
+                tryExecCommand();
+            }
+        } catch (e) {
+            console.error("خطأ غير متوقع في طريقة النسخ الأولى:", e);
+            tryExecCommand();
+        }
+        
+        // طريقة 2: استخدام document.execCommand (الطريقة القديمة)
+        function tryExecCommand() {
+            try {
+                console.log("استخدام طريقة execCommand");
+                var successful = document.execCommand('copy');
+                if (successful) {
+                    console.log("تم النسخ بنجاح باستخدام execCommand");
+                    resolve("exec-command");
+                } else {
+                    console.warn("فشل execCommand");
+                    tryFallbackMethod();
+                }
+            } catch (execError) {
+                console.error("خطأ في execCommand:", execError);
+                tryFallbackMethod();
             }
         }
-    }
-}
-
-/**
- * محاولة النسخ باستخدام document.execCommand (طريقة أقدم ولكن مدعومة على نطاق واسع)
- */
-function copyWithExecCommand(text) {
-    console.log("محاولة النسخ باستخدام execCommand...");
-    
-    try {
-        // محاولة النسخ المباشر من العنصر المحدد حاليًا
-        var successful = document.execCommand('copy');
         
-        if (successful) {
-            console.log("تم النسخ بنجاح باستخدام execCommand");
-            showFeedback(true, "تم نسخ الرابط!");
-            showCopyInProgress(false, true);
-            return true;
-        } else {
-            console.warn("فشل execCommand، المحاولة باستخدام عنصر مؤقت...");
-            return fallbackCopyMethod(text);
+        // طريقة 3: الطريقة الاحتياطية باستخدام عنصر مؤقت
+        function tryFallbackMethod() {
+            console.log("استخدام الطريقة الاحتياطية النهائية");
+            
+            try {
+                // إنشاء عنصر مؤقت
+                var tempElement = document.createElement("textarea");
+                tempElement.style.cssText = "position:fixed;opacity:0;top:0;left:0;";
+                tempElement.value = textToCopy;
+                document.body.appendChild(tempElement);
+                
+                // إعداد خاص لدعم iOS
+                tempElement.contentEditable = true;
+                tempElement.readOnly = false;
+                tempElement.focus();
+                tempElement.select();
+                
+                // محاولة استخدام التحديد للأجهزة المحمولة
+                var range = document.createRange();
+                range.selectNodeContents(tempElement);
+                
+                var selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                // تحديد النص كاملاً
+                tempElement.setSelectionRange(0, textToCopy.length);
+                
+                // محاولة النسخ
+                var successful = document.execCommand('copy');
+                document.body.removeChild(tempElement);
+                
+                if (successful) {
+                    console.log("تم النسخ بنجاح باستخدام الطريقة الاحتياطية");
+                    resolve("fallback-method");
+                } else {
+                    console.warn("فشلت جميع طرق النسخ التلقائي");
+                    reject("جميع الطرق فشلت");
+                }
+            } catch (fallbackError) {
+                console.error("خطأ في الطريقة الاحتياطية:", fallbackError);
+                document.body.removeChild(tempElement);
+                reject(fallbackError);
+            }
         }
-    } catch (err) {
-        console.error("خطأ في execCommand:", err);
-        return fallbackCopyMethod(text);
-    }
-}
-
-/**
- * طريقة النسخ الاحتياطية الأخيرة - تعمل في معظم الحالات
- * تستخدم عنصر مؤقت جديد للنص، أكثر موثوقية في بيئات مختلفة
- */
-function fallbackCopyMethod(text) {
-    console.log("استخدام طريقة النسخ الاحتياطية النهائية...");
+    });
     
-    // إنشاء عنصر نصي مؤقت خارج الشاشة مع خصائص لضمان عمله بشكل صحيح
-    var tempElement = document.createElement("textarea");
-    tempElement.value = text;
-    
-    // خصائص مهمة للعمل بشكل صحيح في بيئات مختلفة
-    tempElement.style.position = "fixed";
-    tempElement.style.left = "-9999px";
-    tempElement.style.top = "0";
-    tempElement.style.opacity = "0";
-    // للتوافق مع iOS
-    tempElement.contentEditable = true;
-    tempElement.readOnly = false;
-    
-    // إضافة العنصر للصفحة
-    document.body.appendChild(tempElement);
-    
-    try {
-        // في iOS نحتاج لهذه الخطوات الإضافية
-        tempElement.focus();
-        tempElement.select();
-        
-        // للتوافق مع iOS
-        var range = document.createRange();
-        range.selectNodeContents(tempElement);
-        
-        var selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        tempElement.setSelectionRange(0, text.length);
-        
-        // محاولة النسخ
-        var successful = document.execCommand('copy');
-        
-        if (successful) {
-            console.log("تم النسخ بنجاح باستخدام الطريقة الاحتياطية");
-            showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
-            showCopyInProgress(false, true);
-            return true;
-        } else {
-            console.warn("فشلت جميع محاولات النسخ التلقائي");
-            // إظهار تعليمات للنسخ اليدوي
-            showFeedback(false, "حاول تحديد الرابط ونسخه يدويًا باستخدام Ctrl+C");
-            showCopyInProgress(false);
-            return false;
-        }
-    } catch (err) {
-        console.error("خطأ في الطريقة الاحتياطية:", err);
-        showFeedback(false, "يرجى تحديد الرابط ونسخه يدويًا");
+    // 7. معالجة نتيجة عملية النسخ
+    replicationsPromise.then(function(method) {
+        console.log("نجحت عملية النسخ باستخدام طريقة:", method);
+        showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
+        showCopyInProgress(false, true);
+    }).catch(function(error) {
+        console.error("فشلت جميع طرق النسخ:", error);
+        showFeedback(false, "يرجى تحديد الرابط ونسخه يدويًا باستخدام Ctrl+C/Command+C");
         showCopyInProgress(false);
-        return false;
-    } finally {
-        // تنظيف - إزالة العنصر المؤقت بعد الانتهاء
-        document.body.removeChild(tempElement);
-    }
+        
+        // تحديد النص مرة أخرى للمساعدة في النسخ اليدوي
+        textarea.focus();
+        textarea.select();
+    });
+    
+    // 8. إزالة التأثير البصري بعد فترة
+    setTimeout(function() {
+        textarea.classList.remove("border-primary", "bg-light");
+    }, 2000);
 }
 
 /**
