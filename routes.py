@@ -628,8 +628,8 @@ def submit_answers(competition_id):
         # إشعار المستخدم بالنتيجة
         flash(f'تم تقديم إجاباتك بنجاح! حصلت على {total_score} نقطة ({correct_answers} من {total_questions} إجابات صحيحة)', 'success')
         
-        # إضافة النقاط مباشرة إلى رصيد المستخدم
-        if total_score > 0:
+        # إضافة النقاط مباشرة إلى رصيد المستخدم (إلا إذا كان مشرفًا)
+        if total_score > 0 and not current_user.is_admin:
             # الاحتفاظ بالنقاط الحالية للمستخدم للمقارنة لاحقًا
             points_before = current_user.points
             
@@ -689,17 +689,18 @@ def submit_answers(competition_id):
                 # الاحتفاظ بالنقاط الحالية للمستخدم للمقارنة لاحقًا
                 points_before = current_user.points
                 
-                # إضافة النقاط مباشرة
-                current_user.points += reward_points
-                
-                # تسجيل معاملة النقاط
-                transaction = PointsTransaction(
-                    user_id=current_user.id,
-                    amount=reward_points,
-                    balance_after=current_user.points,
-                    transaction_type='competition_reward',
-                    related_id=competition.id,
-                    description=f'مكافأة المشاركة في مسابقة: {competition.title}'
+                # إضافة النقاط مباشرة (إلا إذا كان مشرفًا)
+                if not current_user.is_admin:
+                    current_user.points += reward_points
+                    
+                    # تسجيل معاملة النقاط
+                    transaction = PointsTransaction(
+                        user_id=current_user.id,
+                        amount=reward_points,
+                        balance_after=current_user.points,
+                        transaction_type='competition_reward',
+                        related_id=competition.id,
+                        description=f'مكافأة المشاركة في مسابقة: {competition.title}'
                 )
                 
                 # إضافة معلومات الطلب إذا كانت متوفرة
