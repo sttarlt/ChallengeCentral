@@ -1433,8 +1433,9 @@ def admin_delete_question(competition_id, question_id):
     ).count()
     
     if participations_with_answers > 0:
+        # إذا وجدت مشاركات، نعرض رسالة ونقترح إلغاء تنشيط السؤال بدلاً من حذفه
         flash('لا يمكن حذف هذا السؤال لأنه مرتبط بمشاركات مكتملة. يمكنك إلغاء تنشيط السؤال بدلاً من حذفه.', 'warning')
-        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+        return redirect(url_for('admin_toggle_question_status', competition_id=competition.id, question_id=question_id, action='deactivate'))
     
     try:
         # حذف السؤال
@@ -1456,6 +1457,48 @@ def admin_delete_question(competition_id, question_id):
         db.session.rollback()
         app.logger.error(f"خطأ عند حذف السؤال: {str(e)}")
         flash(f'حدث خطأ أثناء محاولة حذف السؤال: {str(e)}', 'danger')
+    
+    return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+
+
+@app.route('/admin/competitions/<int:competition_id>/questions/<int:question_id>/toggle/<action>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_toggle_question_status(competition_id, question_id, action):
+    """تنشيط أو إلغاء تنشيط سؤال بدلاً من حذفه بالكامل"""
+    if action not in ['activate', 'deactivate']:
+        flash('عملية غير صالحة', 'danger')
+        return redirect(url_for('admin_competition_questions', competition_id=competition_id))
+    
+    competition = Competition.query.get_or_404(competition_id)
+    question = Question.query.get_or_404(question_id)
+    
+    # التحقق من أن السؤال ينتمي للمسابقة المحددة
+    if question.competition_id != competition.id:
+        flash('السؤال غير موجود في هذه المسابقة', 'danger')
+        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+    
+    try:
+        # تحديث حالة السؤال
+        question.is_active = (action == 'activate')
+        db.session.commit()
+        
+        # تسجيل الحدث
+        status_text = "تنشيط" if action == 'activate' else "إلغاء تنشيط"
+        log_audit_event(
+            event_type='MANAGEMENT_ACTION',
+            severity='INFO',
+            details=f"تم {status_text} سؤال في المسابقة: {competition.title}",
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=request.remote_addr
+        )
+        
+        flash(f'تم {status_text} السؤال بنجاح', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"خطأ عند تغيير حالة السؤال: {str(e)}")
+        flash(f'حدث خطأ أثناء محاولة تغيير حالة السؤال: {str(e)}', 'danger')
     
     return redirect(url_for('admin_competition_questions', competition_id=competition.id))
 

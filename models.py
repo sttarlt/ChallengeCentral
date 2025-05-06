@@ -494,6 +494,7 @@ class Question(db.Model):
     difficulty = db.Column(db.String(20), default='medium')  # مستوى صعوبة السؤال: easy, medium, hard
     explanation = db.Column(db.Text, nullable=True)  # شرح الإجابة الصحيحة (يظهر بعد الإجابة)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)  # حالة تنشيط السؤال (إخفاء/إظهار)
     
     # استخدام نظام نقاط ديناميكي بدلاً من قيمة ثابتة
     base_points = db.Column(db.Integer, default=1)  # النقاط الأساسية للإجابة الصحيحة
