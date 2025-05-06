@@ -658,6 +658,7 @@ class Participation(db.Model):
     completion_time = db.Column(db.Integer, nullable=True)  # الوقت المستغرق لإكمال المسابقة (بالثواني)
     attempts = db.Column(db.Integer, default=1)  # عدد المحاولات
     last_attempt_at = db.Column(db.DateTime, nullable=True)  # وقت آخر محاولة
+    completed_at = db.Column(db.DateTime, nullable=True)  # وقت إكمال المسابقة
     answers_data = db.Column(db.Text, nullable=True)  # بيانات الإجابات كـ JSON
     correct_answers = db.Column(db.Integer, default=0)  # عدد الإجابات الصحيحة
     bonus_points = db.Column(db.Integer, default=0)  # نقاط إضافية

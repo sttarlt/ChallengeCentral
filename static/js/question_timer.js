@@ -1,203 +1,172 @@
 /**
- * نظام توقيت للأسئلة مع الإغلاق التلقائي عند انتهاء الوقت
+ * إدارة العد التنازلي للوقت في المسابقات
+ * يعرض الوقت المتبقي ويقوم بإرسال النموذج تلقائياً عند انتهاء الوقت
  */
 
-class QuestionTimer {
-    constructor(options) {
-        this.timeLimit = options.timeLimit || 0; // الوقت بالثواني
-        this.timerElement = options.timerElement;
-        this.submitButton = options.submitButton;
-        this.formElement = options.formElement;
-        this.onTimeUp = options.onTimeUp || function() {};
-        this.timeRemaining = this.timeLimit;
-        this.timerInterval = null;
-        this.isRunning = false;
-        this.hasEnded = false;
-    }
-
+class CompetitionTimer {
     /**
-     * بدء العد التنازلي
+     * تهيئة العداد
+     * @param {Number} timeLimit الوقت المحدد بالثواني
+     * @param {String} timerElementId معرف عنصر عرض الوقت
+     * @param {String} formId معرف نموذج الإجابات
+     * @param {String} progressBarId معرف شريط التقدم (اختياري)
+     */
+    constructor(timeLimit, timerElementId, formId, progressBarId = null) {
+        this.timeLimit = parseInt(timeLimit);
+        this.timeRemaining = this.timeLimit;
+        this.timerElement = document.getElementById(timerElementId);
+        this.form = document.getElementById(formId);
+        this.progressBar = progressBarId ? document.getElementById(progressBarId) : null;
+        this.startTime = Date.now();
+        this.timerInterval = null;
+        this.elapsedTimeInput = document.createElement('input');
+        this.elapsedTimeInput.type = 'hidden';
+        this.elapsedTimeInput.name = 'elapsed_time';
+        this.form.appendChild(this.elapsedTimeInput);
+        
+        // إضافة حقل للإشارة إلى انتهاء الوقت
+        this.timeExpiredInput = document.createElement('input');
+        this.timeExpiredInput.type = 'hidden';
+        this.timeExpiredInput.name = 'time_expired';
+        this.timeExpiredInput.value = '0';
+        this.form.appendChild(this.timeExpiredInput);
+    }
+    
+    /**
+     * بدء العداد التنازلي
      */
     start() {
-        if (this.timeLimit <= 0 || this.isRunning || this.hasEnded) return;
-        
-        this.isRunning = true;
-        this.timeRemaining = this.timeLimit;
-        this.updateDisplay();
-        
-        this.timerInterval = setInterval(() => {
-            this.timeRemaining--;
-            this.updateDisplay();
-            
-            if (this.timeRemaining <= 0) {
-                this.end();
-            }
-        }, 1000);
+        this.startTime = Date.now();
+        this.updateTimer();
+        this.timerInterval = setInterval(() => this.updateTimer(), 1000);
+        console.log(`بدأ العداد التنازلي: ${this.timeLimit} ثانية`);
     }
-
+    
     /**
-     * إيقاف العد التنازلي مؤقتًا
+     * تحديث العداد
      */
-    pause() {
-        if (!this.isRunning) return;
+    updateTimer() {
+        // حساب الوقت المنقضي والوقت المتبقي
+        const elapsedTime = Math.floor((Date.now() - this.startTime) / 1000);
+        this.timeRemaining = Math.max(0, this.timeLimit - elapsedTime);
         
-        clearInterval(this.timerInterval);
-        this.isRunning = false;
-    }
-
-    /**
-     * إنهاء العد التنازلي وتعطيل النموذج
-     */
-    end() {
-        if (this.hasEnded) return;
+        // تحديث حقل الوقت المنقضي
+        this.elapsedTimeInput.value = elapsedTime;
         
-        clearInterval(this.timerInterval);
-        this.isRunning = false;
-        this.hasEnded = true;
-        this.timeRemaining = 0;
-        this.updateDisplay();
-        
-        // تعطيل زر الإرسال
-        if (this.submitButton) {
-            this.submitButton.disabled = true;
-            this.submitButton.classList.add('disabled');
-        }
-        
-        // تعطيل النموذج
-        if (this.formElement) {
-            const inputs = this.formElement.querySelectorAll('input, select, textarea, button');
-            inputs.forEach(input => {
-                input.disabled = true;
-            });
-        }
-        
-        // عرض رسالة انتهاء الوقت
-        const timeUpMessage = document.createElement('div');
-        timeUpMessage.className = 'alert alert-danger mt-3 text-center';
-        timeUpMessage.innerHTML = '<strong>انتهى الوقت!</strong> لم يعد بإمكانك تقديم إجاباتك.';
-        
-        if (this.formElement) {
-            this.formElement.appendChild(timeUpMessage);
-        }
-        
-        // استدعاء الدالة المخصصة لانتهاء الوقت
-        this.onTimeUp();
-    }
-
-    /**
-     * تحديث عرض الوقت المتبقي
-     */
-    updateDisplay() {
-        if (!this.timerElement) return;
-        
+        // تنسيق الوقت
         const minutes = Math.floor(this.timeRemaining / 60);
         const seconds = this.timeRemaining % 60;
+        const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         
-        // تنسيق العرض
-        const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        this.timerElement.textContent = timeString;
-        
-        // تغيير لون المؤقت حسب الوقت المتبقي
-        if (this.timeRemaining <= 10) {
-            this.timerElement.classList.add('text-danger');
-            this.timerElement.classList.add('fw-bold');
-        } else if (this.timeRemaining <= 30) {
-            this.timerElement.classList.add('text-warning');
-            this.timerElement.classList.remove('text-danger');
-        } else {
-            this.timerElement.classList.remove('text-warning');
-            this.timerElement.classList.remove('text-danger');
-        }
-    }
-
-    /**
-     * الحصول على الوقت المتبقي
-     */
-    getTimeRemaining() {
-        return this.timeRemaining;
-    }
-
-    /**
-     * تحقق مما إذا كان المؤقت ما زال يعمل
-     */
-    isActive() {
-        return this.isRunning;
-    }
-}
-
-// إضافة دالة لتسجيل وقت البدء والوقت المستغرق للإجابة 
-function recordTimingData() {
-    const startTime = document.getElementById('start-time');
-    if (!startTime) {
-        // إنشاء حقل مخفي لتخزين وقت البدء
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.id = 'start-time';
-        input.name = 'start_time';
-        input.value = Date.now().toString();
-        document.querySelector('form').appendChild(input);
-    }
-}
-
-// إضافة دالة حساب الوقت المستغرق عند الإرسال
-function calculateElapsedTime() {
-    const startTimeField = document.getElementById('start-time');
-    if (startTimeField) {
-        const startTime = parseInt(startTimeField.value);
-        const endTime = Date.now();
-        const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
-        
-        // إنشاء حقل مخفي لإرسال الوقت المستغرق
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'elapsed_time';
-        input.value = elapsedSeconds.toString();
-        document.querySelector('form').appendChild(input);
-    }
-}
-
-// تهيئة المؤقت عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', function() {
-    // البحث عن عناصر المؤقت في الصفحة
-    const timerElement = document.getElementById('question-timer');
-    const submitButton = document.querySelector('button[type="submit"]');
-    const formElement = document.querySelector('form');
-    
-    if (timerElement && timerElement.dataset.timeLimit) {
-        const timeLimit = parseInt(timerElement.dataset.timeLimit);
-        
-        // إنشاء كائن المؤقت
-        const timer = new QuestionTimer({
-            timeLimit: timeLimit,
-            timerElement: timerElement,
-            submitButton: submitButton,
-            formElement: formElement,
-            onTimeUp: function() {
-                // إرسال النموذج تلقائيًا عند انتهاء الوقت
-                if (formElement) {
-                    // إضافة حقل مخفي يشير إلى انتهاء الوقت
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'time_expired';
-                    input.value = '1';
-                    formElement.appendChild(input);
-                    
-                    // حساب الوقت المستغرق
-                    calculateElapsedTime();
+        // تحديث عنصر العرض
+        if (this.timerElement) {
+            this.timerElement.textContent = formattedTime;
+            
+            // تغيير لون الوقت حسب الوقت المتبقي
+            if (this.timeRemaining <= 30) {
+                this.timerElement.classList.add('text-danger');
+                this.timerElement.classList.add('fw-bold');
+                
+                // إضافة وميض عند اقتراب نفاد الوقت
+                if (this.timeRemaining <= 10) {
+                    this.timerElement.classList.add('blink');
                 }
             }
+        }
+        
+        // تحديث شريط التقدم
+        if (this.progressBar) {
+            const percentage = (this.timeRemaining / this.timeLimit) * 100;
+            this.progressBar.style.width = `${percentage}%`;
+            
+            // تغيير لون شريط التقدم حسب الوقت المتبقي
+            if (percentage > 60) {
+                this.progressBar.classList.remove('bg-warning', 'bg-danger');
+                this.progressBar.classList.add('bg-success');
+            } else if (percentage > 30) {
+                this.progressBar.classList.remove('bg-success', 'bg-danger');
+                this.progressBar.classList.add('bg-warning');
+            } else {
+                this.progressBar.classList.remove('bg-success', 'bg-warning');
+                this.progressBar.classList.add('bg-danger');
+            }
+        }
+        
+        // إذا انتهى الوقت
+        if (this.timeRemaining === 0) {
+            this.timeExpired();
+        }
+    }
+    
+    /**
+     * عند انتهاء الوقت
+     */
+    timeExpired() {
+        clearInterval(this.timerInterval);
+        console.log('انتهى الوقت!');
+        
+        // تعيين حقل انتهاء الوقت
+        this.timeExpiredInput.value = '1';
+        
+        // إظهار رسالة للمستخدم
+        const alertElement = document.createElement('div');
+        alertElement.className = 'alert alert-danger text-center my-3 fs-4';
+        alertElement.innerHTML = '<i class="fas fa-clock me-2"></i> انتهى الوقت! جاري إرسال إجاباتك...';
+        this.form.parentNode.insertBefore(alertElement, this.form);
+        
+        // تعطيل أزرار التحكم
+        const submitButtons = this.form.querySelectorAll('button[type="submit"]');
+        submitButtons.forEach(button => {
+            button.disabled = true;
         });
         
-        // تسجيل وقت البدء
-        recordTimingData();
+        // إرسال النموذج تلقائياً بعد ثانيتين
+        setTimeout(() => {
+            this.form.submit();
+        }, 2000);
+    }
+    
+    /**
+     * إيقاف العداد
+     */
+    stop() {
+        clearInterval(this.timerInterval);
+        console.log('تم إيقاف العداد');
+    }
+}
+
+// المستمع لتحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    // البحث عن عنصر وقت المسابقة
+    const competitionTimeLimit = document.getElementById('competition-time-limit');
+    
+    // إذا كانت المسابقة محددة بوقت
+    if (competitionTimeLimit) {
+        const timeLimit = parseInt(competitionTimeLimit.dataset.timeLimit);
+        const timerElementId = 'competition-timer';
+        const formId = 'competition-form';
+        const progressBarId = 'timer-progress-bar';
         
-        // بدء المؤقت
-        timer.start();
-        
-        // إضافة معالج حدث لزر الإرسال
-        if (submitButton && formElement) {
-            formElement.addEventListener('submit', function() {
-                calculateElapsedTime();
+        // التأكد من وجود العناصر المطلوبة
+        if (document.getElementById(timerElementId) && document.getElementById(formId)) {
+            // إنشاء وبدء عداد المسابقة
+            const timer = new CompetitionTimer(timeLimit, timerElementId, formId, progressBarId);
+            timer.start();
+            
+            // إضافة سلوك التأكيد عند محاولة مغادرة الصفحة
+            window.addEventListener('beforeunload', function(e) {
+                // إذا كان الوقت لا يزال متبقياً والنموذج لم يرسل بعد
+                if (timer.timeRemaining > 0 && !window.isSubmitting) {
+                    // إظهار تأكيد للمستخدم
+                    e.preventDefault();
+                    e.returnValue = 'لديك إجابات غير محفوظة. هل أنت متأكد من أنك تريد المغادرة؟';
+                    return e.returnValue;
+                }
+            });
+            
+            // تعيين متغير عند إرسال النموذج لمنع ظهور تأكيد المغادرة
+            document.getElementById(formId).addEventListener('submit', function() {
+                window.isSubmitting = true;
             });
         }
     }
