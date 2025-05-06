@@ -1,0 +1,65 @@
+/* أنماط خاصة بصفحة المسابقات */
+
+/* نمط وميض المؤقت عند اقتراب انتهاء الوقت */
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+.blink {
+    animation: blink 1s linear infinite;
+}
+
+/* تنسيق بطاقات الأسئلة */
+.question-card {
+    transition: all 0.3s ease;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.question-card.answered {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.question-card .card-header {
+    transition: background-color 0.3s ease;
+}
+
+/* أزرار الإجابات */
+.list-group-item {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.list-group-item:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.list-group-item input[type="radio"]:checked + span {
+    color: #0d6efd;
+    font-weight: bold;
+}
+
+/* مؤشرات صعوبة السؤال */
+.difficulty-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* مؤقت المسابقة */
+#competition-timer {
+    font-family: monospace;
+    letter-spacing: 2px;
+    transition: color 0.3s ease;
+}
+
+/* شريط التقدم في المسابقة */
+#timer-progress-bar {
+    transition: width 1s linear, background-color 0.5s ease;
+}
+
+/* مؤشر التقدم في الأسئلة */
+#quiz-progress {
+    transition: width 0.3s ease;
+}
