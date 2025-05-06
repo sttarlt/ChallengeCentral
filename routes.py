@@ -602,7 +602,7 @@ def points_pricing():
 
 
 # Admin routes
-@app.route('/admin/login', methods=['GET', 'POST'])
+@app.route('/secure-admin-panel-9382/authenticate', methods=['GET', 'POST'])
 @limiter.limit("5 per minute, 20 per hour")  # حماية معدل الطلبات للوصول إلى واجهة المشرف
 def admin_login():
     # إذا كان المستخدم مسجل دخول بالفعل كمشرف، يتم توجيهه إلى لوحة التحكم مباشرة
