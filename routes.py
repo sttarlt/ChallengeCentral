@@ -515,8 +515,9 @@ def competition_details(competition_id):
 
 @app.route('/rewards')
 def rewards():
+    form = RedeemRewardForm()
     available_rewards = Reward.query.filter_by(is_available=True).all()
-    return render_template('rewards.html', rewards=available_rewards)
+    return render_template('rewards.html', rewards=available_rewards, form=form)
 
 
 @app.route('/rewards/redeem/<int:reward_id>', methods=['GET', 'POST'])
