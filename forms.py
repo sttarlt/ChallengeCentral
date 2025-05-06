@@ -46,7 +46,8 @@ class QuestionForm(FlaskForm):
         choices=[
             ('multiple_choice', 'اختيار من متعدد'),
             ('true_false', 'صح/خطأ'),
-            ('text', 'إجابة نصية')
+            ('text', 'إجابة نصية'),
+            ('image_choice', 'اختيار مع صورة')
         ],
         validators=[DataRequired()]
     )
@@ -57,6 +58,17 @@ class QuestionForm(FlaskForm):
     correct_answer = StringField('الإجابة الصحيحة', validators=[DataRequired()])
     points = IntegerField('النقاط', validators=[DataRequired()], default=1)
     order = IntegerField('الترتيب', validators=[], default=0)
+    image_url = StringField('رابط الصورة', validators=[])
+    time_limit = IntegerField('الوقت المحدد (بالثواني)', validators=[], default=0)
+    difficulty = SelectField(
+        'مستوى الصعوبة',
+        choices=[
+            ('easy', 'سهل'),
+            ('medium', 'متوسط'),
+            ('hard', 'صعب')
+        ],
+        default='medium'
+    )
     submit = SubmitField('حفظ السؤال')
 
 

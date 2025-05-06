@@ -464,7 +464,10 @@ class Question(db.Model):
     correct_answer = db.Column(db.String(255), nullable=True)  # الإجابة الصحيحة
     points = db.Column(db.Integer, default=1)  # النقاط المستحقة لهذا السؤال
     order = db.Column(db.Integer, default=0)  # ترتيب السؤال في المسابقة
-    question_type = db.Column(db.String(20), default='multiple_choice')  # نوع السؤال: multiple_choice, true_false, text
+    question_type = db.Column(db.String(20), default='multiple_choice')  # نوع السؤال: multiple_choice, true_false, text, image_choice
+    image_url = db.Column(db.String(500), nullable=True)  # رابط الصورة للأسئلة التي تحتوي على صور
+    time_limit = db.Column(db.Integer, nullable=True)  # الوقت المحدد للسؤال (بالثواني)
+    difficulty = db.Column(db.String(20), default='medium')  # مستوى صعوبة السؤال: easy, medium, hard
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     @property
@@ -477,6 +480,16 @@ class Question(db.Model):
             except:
                 return []
         return []
+        
+    @property
+    def has_image(self):
+        """التحقق مما إذا كان السؤال يحتوي على صورة"""
+        return self.image_url is not None and self.image_url.strip() != ""
+        
+    @property
+    def has_time_limit(self):
+        """التحقق مما إذا كان للسؤال وقت محدد"""
+        return self.time_limit is not None and self.time_limit > 0
 
 
 class Reward(db.Model):

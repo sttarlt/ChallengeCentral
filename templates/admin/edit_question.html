@@ -71,6 +71,57 @@
                 </div>
             </div>
             
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="difficulty" class="form-label">مستوى الصعوبة</label>
+                    {{ form.difficulty(id="difficulty", class="form-select" + (" is-invalid" if form.difficulty.errors else "")) }}
+                    {% if form.difficulty.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.difficulty.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                    <label for="time_limit" class="form-label">الوقت المحدد (بالثواني)</label>
+                    {{ form.time_limit(id="time_limit", class="form-control" + (" is-invalid" if form.time_limit.errors else ""), placeholder="0") }}
+                    {% if form.time_limit.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.time_limit.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="form-text">اترك 0 للوقت غير محدود</div>
+                </div>
+            </div>
+            
+            <div class="row mb-3" id="imageSection">
+                <div class="col-md-12">
+                    <label for="image_url" class="form-label">رابط الصورة</label>
+                    {{ form.image_url(id="image_url", class="form-control" + (" is-invalid" if form.image_url.errors else ""), placeholder="https://example.com/image.jpg") }}
+                    {% if form.image_url.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.image_url.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="form-text">أدخل رابط صورة (jpg, png, gif) يمكن عرضها في السؤال</div>
+                </div>
+                
+                <div class="col-md-12 mt-2" id="imagePreview" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">معاينة الصورة</div>
+                        <div class="card-body">
+                            <img id="questionImage" src="" class="img-fluid" alt="معاينة الصورة" style="max-height: 300px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="row mb-3" id="optionsSection">
                 <div class="col-md-12">
                     <label for="options" class="form-label">خيارات الإجابة</label>
@@ -82,7 +133,7 @@
                             {% endfor %}
                         </div>
                     {% endif %}
-                    <div class="form-text">للأسئلة متعددة الخيارات فقط. اكتب كل خيار في سطر منفصل.</div>
+                    <div class="form-text">للأسئلة متعددة الخيارات. اكتب كل خيار في سطر منفصل.</div>
                 </div>
             </div>
             
