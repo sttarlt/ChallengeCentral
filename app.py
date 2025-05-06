@@ -14,8 +14,15 @@ from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
+# Configure logging - more detailed for development
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('logs/app.log', 'a')
+    ]
+)
 
 
 class Base(DeclarativeBase):

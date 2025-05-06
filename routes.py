@@ -522,29 +522,43 @@ def competition_details(competition_id):
 @app.route('/competitions/<int:competition_id>/submit-answers', methods=['POST'])
 @login_required
 def submit_answers(competition_id):
-    """معالجة تقديم إجابات المسابقة"""
+    """معالجة تقديم إجابات المسابقة وإضافة النقاط"""
+    app.logger.info(f"=== بداية معالجة إجابات المسابقة #{competition_id} للمستخدم {current_user.username} ===")
+    
+    # متغيرات للتتبع
+    competition = None
+    participation = None
+    total_score = 0
+    correct_answers = 0
+    total_questions = 0
+    
     try:
         # التحقق من وجود المسابقة
         competition = Competition.query.get_or_404(competition_id)
+        app.logger.info(f"تم العثور على المسابقة: {competition.title}")
         
         # التحقق من أن المستخدم مشارك بالفعل في المسابقة
         participation = Participation.query.filter_by(
             user_id=current_user.id,
             competition_id=competition.id
         ).first_or_404()
+        app.logger.info(f"المستخدم مشارك بالفعل في المسابقة")
         
         # التحقق من أن المسابقة لا تزال نشطة
-        if not competition.is_active or competition.end_date < datetime.utcnow():
+        now = datetime.utcnow()
+        if not competition.is_active:
+            app.logger.warning(f"المسابقة غير نشطة")
+            flash('هذه المسابقة غير نشطة ولا يمكن تقديم إجابات', 'warning')
+            return redirect(url_for('competition_details', competition_id=competition.id))
+            
+        if competition.end_date < now:
+            app.logger.warning(f"انتهت المسابقة. تاريخ الانتهاء: {competition.end_date}, الآن: {now}")
             flash('لقد انتهت هذه المسابقة ولا يمكن تقديم إجابات', 'warning')
             return redirect(url_for('competition_details', competition_id=competition.id))
         
-        # حساب النقاط
-        total_score = 0
-        total_questions = 0
-        correct_answers = 0
-        
         # الحصول على جميع أسئلة المسابقة
         questions = competition.get_questions()
+        app.logger.info(f"عدد الأسئلة في المسابقة: {len(questions)}")
         
         # التحقق من كل إجابة
         for question in questions:
@@ -553,6 +567,7 @@ def submit_answers(competition_id):
             
             if answer_key in request.form:
                 user_answer = request.form[answer_key]
+                app.logger.debug(f"إجابة المستخدم على السؤال {question.id}: {user_answer}")
                 
                 # الإجابة الصحيحة تعتمد على نوع السؤال
                 if question.question_type == 'multiple_choice':
@@ -564,86 +579,133 @@ def submit_answers(competition_id):
                             if str(option_index) == question.correct_answer:
                                 total_score += question.points
                                 correct_answers += 1
-                    except (ValueError, TypeError):
-                        pass
+                                app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
+                            else:
+                                app.logger.debug(f"إجابة خاطئة. الصحيحة هي: {question.correct_answer}")
+                    except (ValueError, TypeError) as e:
+                        app.logger.error(f"خطأ في تحويل قيمة الإجابة: {str(e)}")
                         
                 elif question.question_type == 'true_false':
                     if user_answer == question.correct_answer:
                         total_score += question.points
                         correct_answers += 1
+                        app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
+                    else:
+                        app.logger.debug(f"إجابة خاطئة. الصحيحة هي: {question.correct_answer}")
                         
                 elif question.question_type == 'text':
                     # مقارنة بسيطة للإجابة النصية
-                    # يمكن تطويرها لتكون أكثر مرونة في المستقبل
                     if user_answer.strip().lower() == question.correct_answer.strip().lower():
                         total_score += question.points
                         correct_answers += 1
+                        app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
+                    else:
+                        app.logger.debug(f"إجابة خاطئة. الصحيحة هي: {question.correct_answer}")
+            else:
+                app.logger.debug(f"لم يتم العثور على إجابة للسؤال {question.id}")
         
-        # تحديث نقاط المشاركة
+        app.logger.info(f"النتيجة: {correct_answers} إجابات صحيحة من أصل {total_questions}. المجموع: {total_score} نقطة")
+        
+        # تحديث نقاط المشاركة في جدول المشاركة
+        previous_score = participation.score
         participation.score = total_score
         participation.completed = True
+        
+        # حفظ التغييرات في جدول المشاركة
         db.session.commit()
+        app.logger.info(f"تم تحديث درجة المشاركة من {previous_score} إلى {total_score}")
         
         # إشعار المستخدم بالنتيجة
         flash(f'تم تقديم إجاباتك بنجاح! حصلت على {total_score} نقطة ({correct_answers} من {total_questions} إجابات صحيحة)', 'success')
         
-        # أولا: إضافة نقاط الأسئلة التي تمت الإجابة عليها بشكل صحيح
-        app.logger.info(f"submit_answers: total_score={total_score}, user={current_user.username}")
+        # إضافة النقاط مباشرة إلى رصيد المستخدم
         if total_score > 0:
-            # تسجيل النقاط التي سيتم إضافتها
-            app.logger.info(f"Adding {total_score} points to user {current_user.username} for competition {competition.id}")
+            # الاحتفاظ بالنقاط الحالية للمستخدم للمقارنة لاحقًا
+            points_before = current_user.points
             
-            # استدعاء واضح لـ add_points مع تجنب المشاكل المحتملة
-            try:
-                success = current_user.add_points(
-                    points=total_score,
-                    transaction_type='competition_question_points',
+            # إضافة النقاط مباشرة
+            current_user.points += total_score
+            
+            # تسجيل معاملة النقاط
+            transaction = PointsTransaction(
+                user_id=current_user.id,
+                amount=total_score,
+                balance_after=current_user.points,
+                transaction_type='competition_question_points',
+                related_id=competition.id,
+                description=f'نقاط الإجابات الصحيحة في مسابقة: {competition.title}'
+            )
+            
+            # إضافة معلومات الطلب إذا كانت متوفرة
+            if request:
+                ip_address = request.remote_addr
+                if 'X-Forwarded-For' in request.headers:
+                    ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                transaction.ip_address = ip_address
+                if hasattr(request, 'user_agent') and request.user_agent:
+                    transaction.user_agent = request.user_agent.string
+            
+            db.session.add(transaction)
+            db.session.commit()
+            
+            app.logger.info(f"تمت إضافة {total_score} نقطة لرصيد المستخدم. الرصيد قبل: {points_before}, الرصيد بعد: {current_user.points}")
+            flash(f'تهانينا! تمت إضافة {total_score} كربتو إلى رصيدك!', 'success')
+        
+        # حساب وإضافة نقاط المكافأة الإضافية إذا كانت المسابقة تمنح نقاط إضافية
+        if competition.points > 0 and total_questions > 0:
+            success_percentage = (correct_answers / total_questions) * 100
+            reward_points = 0
+            
+            if success_percentage >= 80:  # 80% أو أعلى للحصول على كامل النقاط
+                reward_points = competition.points
+                app.logger.info(f"نسبة النجاح {success_percentage}% >= 80%. المكافأة الكاملة: {reward_points}")
+            elif success_percentage >= 50:  # 50% أو أعلى للحصول على نصف النقاط
+                reward_points = competition.points // 2
+                app.logger.info(f"نسبة النجاح {success_percentage}% >= 50%. نصف المكافأة: {reward_points}")
+            else:
+                app.logger.info(f"نسبة النجاح {success_percentage}% < 50%. لا توجد مكافأة إضافية.")
+            
+            if reward_points > 0:
+                # الاحتفاظ بالنقاط الحالية للمستخدم للمقارنة لاحقًا
+                points_before = current_user.points
+                
+                # إضافة النقاط مباشرة
+                current_user.points += reward_points
+                
+                # تسجيل معاملة النقاط
+                transaction = PointsTransaction(
+                    user_id=current_user.id,
+                    amount=reward_points,
+                    balance_after=current_user.points,
+                    transaction_type='competition_reward',
                     related_id=competition.id,
-                    description=f'نقاط الإجابات الصحيحة في مسابقة: {competition.title}',
-                    request=request
+                    description=f'مكافأة المشاركة في مسابقة: {competition.title}'
                 )
                 
-                app.logger.info(f"Result of adding points: {success}")
+                # إضافة معلومات الطلب إذا كانت متوفرة
+                if request:
+                    ip_address = request.remote_addr
+                    if 'X-Forwarded-For' in request.headers:
+                        ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                    transaction.ip_address = ip_address
+                    if hasattr(request, 'user_agent') and request.user_agent:
+                        transaction.user_agent = request.user_agent.string
                 
-                if success:
-                    flash(f'تهانينا! لقد كسبت {total_score} كربتو من الإجابات الصحيحة', 'success')
-                else:
-                    app.logger.error(f"Failed to add points to user {current_user.username}")
-            except Exception as e:
-                app.logger.error(f"Exception adding points: {str(e)}")
-                db.session.rollback()
+                db.session.add(transaction)
+                db.session.commit()
+                
+                app.logger.info(f"تمت إضافة {reward_points} نقطة إضافية كمكافأة. الرصيد قبل: {points_before}, الرصيد بعد: {current_user.points}")
+                flash(f'تهانينا! لقد كسبت {reward_points} كربتو إضافية كمكافأة على أدائك الجيد في المسابقة.', 'success')
         
-        # ثانيا: إضافة نقاط المكافأة الإضافية إذا كانت هناك نقاط للمسابقة
-        if competition.points > 0:
-            # تحديد النقاط بناءً على نسبة الإجابات الصحيحة
-            if total_questions > 0:
-                success_percentage = (correct_answers / total_questions) * 100
-                
-                if success_percentage >= 80:  # 80% أو أعلى للحصول على كامل النقاط
-                    reward_points = competition.points
-                elif success_percentage >= 50:  # 50% أو أعلى للحصول على نصف النقاط
-                    reward_points = competition.points // 2
-                else:
-                    reward_points = 0
-                
-                if reward_points > 0:
-                    # إضافة النقاط للمستخدم
-                    success = current_user.add_points(
-                        points=reward_points,
-                        transaction_type='competition_reward',
-                        related_id=competition.id,
-                        description=f'مكافأة المشاركة في مسابقة: {competition.title}',
-                        request=request
-                    )
-                    
-                    if success:
-                        flash(f'تهانينا! لقد كسبت {reward_points} كربتو إضافية كمكافأة على أدائك الجيد في المسابقة', 'success')
-        
+        app.logger.info(f"=== اكتملت معالجة الإجابات بنجاح. الرصيد الحالي: {current_user.points} ===")
         return redirect(url_for('competition_details', competition_id=competition.id))
+        
     except Exception as e:
-        app.logger.error(f"Error in submit_answers: {str(e)}")
+        db.session.rollback()
+        app.logger.error(f"خطأ في معالجة إجابات المسابقة: {str(e)}")
+        app.logger.exception(e)  # تسجيل تتبع الاستثناء الكامل
         flash('حدث خطأ أثناء معالجة إجاباتك. يرجى المحاولة مرة أخرى.', 'danger')
-        return redirect(url_for('competition_details', competition_id=competition.id))
+        return redirect(url_for('competition_details', competition_id=competition_id))
 
 
 @app.route('/rewards')
