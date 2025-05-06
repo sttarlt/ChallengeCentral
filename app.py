@@ -254,6 +254,11 @@ def security_checks():
 with app.app_context():
     # تنظيف المعاملات المعلقة في قاعدة البيانات
     try:
+        # إلغاء أي معاملات معلقة في جلسة SQLAlchemy
+        db.session.rollback()
+        db.session.close()
+        
+        # إجراء ROLLBACK مباشر على مستوى البرتوكول لضمان تنظيف كل المعاملات
         engine = db.get_engine()
         connection = engine.raw_connection()
         cursor = connection.cursor()
@@ -261,9 +266,19 @@ with app.app_context():
         connection.commit()
         cursor.close()
         connection.close()
+        
+        # إعادة إنشاء الاتصال للتأكد من نظافة الحالة
+        db.session.remove()
+        
         app.logger.info("تم تنظيف المعاملات المعلقة في قاعدة البيانات")
     except Exception as e:
         app.logger.error(f"خطأ في تنظيف المعاملات المعلقة: {str(e)}")
+        # محاولة إضافية لتنظيف البيئة 
+        try:
+            db.session.remove()
+            app.logger.info("تم استخدام session.remove() كإجراء احتياطي")
+        except Exception as inner_e:
+            app.logger.error(f"فشل إجراء التنظيف الاحتياطي: {str(inner_e)}")
     
     # Import models
     from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message
