@@ -109,16 +109,28 @@
                                     </button>
                                 </div>
                                 
+                                <script>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    // تأكد من تحميل Bootstrap Modal بشكل صحيح
+                                    var deleteModal{{ question.id }} = new bootstrap.Modal(document.getElementById('deleteModal{{ question.id }}'), {
+                                        keyboard: true,
+                                        backdrop: true
+                                    });
+                                });
+                                </script>
+                                
                                 <!-- Modal -->
-                                <div class="modal fade" id="deleteModal{{ question.id }}" tabindex="-1" aria-hidden="true">
+                                <!-- تعديل نافذة التأكيد للتوافق مع Bootstrap 5 -->
+                                <div class="modal fade" id="deleteModal{{ question.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ question.id }}" aria-hidden="true">
                                     <div class="modal-dialog">
                                         <div class="modal-content">
                                             <div class="modal-header">
-                                                <h5 class="modal-title">تأكيد الحذف</h5>
+                                                <h5 class="modal-title" id="deleteModalLabel{{ question.id }}">تأكيد الحذف</h5>
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
                                             </div>
                                             <div class="modal-body">
-                                                هل أنت متأكد من حذف هذا السؤال؟
+                                                <p>هل أنت متأكد من حذف هذا السؤال؟</p>
+                                                <p class="text-truncate"><strong>السؤال:</strong> {{ question.text|truncate(50) }}</p>
                                                 <div class="alert alert-warning mt-2">
                                                     <strong>تحذير:</strong> لا يمكن التراجع عن هذا الإجراء.
                                                 </div>
@@ -134,7 +146,7 @@
                                             </div>
                                             <div class="modal-footer">
                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
-                                                <form action="{{ url_for('admin_delete_question', competition_id=competition.id, question_id=question.id) }}" method="POST">
+                                                <form action="{{ url_for('admin_delete_question', competition_id=competition.id, question_id=question.id) }}" method="POST" class="d-inline">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                     <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
                                                 </form>
@@ -176,4 +188,58 @@
         </div>
     </div>
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // تحديد جميع أزرار الحذف
+    const deleteButtons = document.querySelectorAll('button[data-bs-target^="#deleteModal"]');
+    
+    // إضافة معالج أحداث لكل زر
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-bs-target');
+            const modalElement = document.querySelector(targetId);
+            
+            // التأكد من أن الموديل موجود قبل محاولة عرضه
+            if (modalElement) {
+                try {
+                    // محاولة استخدام واجهة Bootstrap API
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                } catch (e) {
+                    console.error('خطأ في فتح الموديل:', e);
+                    // بديل - استخدام أسلوب أقل تفضيلاً ولكنه يعمل إذا تعذر استخدام API
+                    modalElement.classList.add('show');
+                    modalElement.style.display = 'block';
+                    document.body.classList.add('modal-open');
+                    
+                    // إنشاء خلفية للموديل
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'modal-backdrop fade show';
+                    document.body.appendChild(backdrop);
+                }
+            }
+        });
+    });
+    
+    // معالجة أزرار الإغلاق في الموديل
+    document.querySelectorAll('.modal .btn-close, .modal .btn-secondary').forEach(closeBtn => {
+        closeBtn.addEventListener('click', function() {
+            const modal = this.closest('.modal');
+            if (modal) {
+                modal.classList.remove('show');
+                modal.style.display = 'none';
+                document.body.classList.remove('modal-open');
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

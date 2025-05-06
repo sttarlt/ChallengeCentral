@@ -1483,8 +1483,7 @@ def admin_delete_question(competition_id, question_id):
     return redirect(url_for('admin_competition_questions', competition_id=competition.id))
 
 
-@app.route('/admin/competitions/<int:competition_id>/questions/<int:question_id>/toggle/<action>', methods=['GET', 'POST'])
-@login_required
+@app.route('/secure-admin-panel-9382/competitions/<int:competition_id>/questions/<int:question_id>/toggle/<action>', methods=['GET'])
 @admin_required
 def admin_toggle_question_status(competition_id, question_id, action):
     """تنشيط أو إلغاء تنشيط سؤال بدلاً من حذفه بالكامل"""
