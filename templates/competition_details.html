@@ -78,6 +78,74 @@
                         {% if current_user.is_authenticated %}
                             {% if participation %}
                                 <button class="btn btn-success btn-lg" disabled>أنت مشارك بالفعل</button>
+                                
+                                <!-- عرض الأسئلة للمشاركين -->
+                                {% if questions %}
+                                <div class="card shadow-sm mt-4">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0">أسئلة المسابقة</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="questionsForm" method="POST" action="{{ url_for('submit_answers', competition_id=competition.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            
+                                            {% for question in questions %}
+                                            <div class="card mb-4 question-card">
+                                                <div class="card-header d-flex justify-content-between align-items-center">
+                                                    <h6 class="mb-0">سؤال {{ loop.index }}</h6>
+                                                    <span class="badge bg-primary">{{ question.points }} نقطة</span>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p class="card-text mb-3">{{ question.text }}</p>
+                                                    
+                                                    {% if question.question_type == 'multiple_choice' %}
+                                                        <div class="list-group">
+                                                            {% for option in question.options_list %}
+                                                            <label class="list-group-item">
+                                                                <input class="form-check-input me-1" type="radio" name="answer_{{ question.id }}" value="{{ loop.index0 }}">
+                                                                {{ option }}
+                                                            </label>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% elif question.question_type == 'true_false' %}
+                                                        <div class="list-group">
+                                                            <label class="list-group-item">
+                                                                <input class="form-check-input me-1" type="radio" name="answer_{{ question.id }}" value="true">
+                                                                صحيح
+                                                            </label>
+                                                            <label class="list-group-item">
+                                                                <input class="form-check-input me-1" type="radio" name="answer_{{ question.id }}" value="false">
+                                                                خطأ
+                                                            </label>
+                                                        </div>
+                                                    {% elif question.question_type == 'text' %}
+                                                        <div class="mb-3">
+                                                            <input type="text" class="form-control" name="answer_{{ question.id }}" placeholder="أدخل إجابتك هنا">
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                            
+                                            {% if questions %}
+                                            <div class="d-grid gap-2">
+                                                <button type="submit" class="btn btn-primary">إرسال الإجابات</button>
+                                            </div>
+                                            {% else %}
+                                            <div class="alert alert-info">
+                                                لا توجد أسئلة في هذه المسابقة حتى الآن.
+                                            </div>
+                                            {% endif %}
+                                        </form>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="alert alert-info mt-4">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    لا توجد أسئلة متاحة في هذه المسابقة حتى الآن. يرجى العودة لاحقًا.
+                                </div>
+                                {% endif %}
+                                
                             {% else %}
                                 <form method="POST" action="{{ url_for('competition_details', competition_id=competition.id) }}">
                                     {{ form.hidden_tag() }}

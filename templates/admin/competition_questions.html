@@ -1,0 +1,121 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}أسئلة المسابقة - لوحة التحكم{% endblock %}
+
+{% block admin_content %}
+<div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 text-primary">أسئلة المسابقة "{{ competition.title }}"</h5>
+        <a href="{{ url_for('admin_competitions') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-right me-1"></i> العودة للمسابقات
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-12 text-start">
+                <a href="{{ url_for('admin_new_question', competition_id=competition.id) }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i> إضافة سؤال جديد
+                </a>
+            </div>
+        </div>
+        
+        {% if questions %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>السؤال</th>
+                            <th>النوع</th>
+                            <th>الترتيب</th>
+                            <th>النقاط</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for question in questions %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ question.text|truncate(50) }}</td>
+                            <td>
+                                {% if question.question_type == 'multiple_choice' %}
+                                    <span class="badge bg-primary">اختيار من متعدد</span>
+                                {% elif question.question_type == 'true_false' %}
+                                    <span class="badge bg-success">صح/خطأ</span>
+                                {% elif question.question_type == 'text' %}
+                                    <span class="badge bg-info">إجابة نصية</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ question.order }}</td>
+                            <td>{{ question.points }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('admin_edit_question', competition_id=competition.id, question_id=question.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i> تعديل
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteModal{{ question.id }}">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </button>
+                                </div>
+                                
+                                <!-- Modal -->
+                                <div class="modal fade" id="deleteModal{{ question.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">تأكيد الحذف</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                هل أنت متأكد من حذف هذا السؤال؟
+                                                <div class="alert alert-warning mt-2">
+                                                    <strong>تحذير:</strong> لا يمكن التراجع عن هذا الإجراء.
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                                                <form action="{{ url_for('admin_delete_question', competition_id=competition.id, question_id=question.id) }}" method="POST">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                لا توجد أسئلة في هذه المسابقة بعد. قم بإضافة أسئلة لتتمكن المستخدمين من المشاركة.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-header">
+        <h5 class="mb-0 text-primary">معلومات المسابقة</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>العنوان:</strong> {{ competition.title }}</p>
+                <p><strong>الوصف:</strong> {{ competition.description }}</p>
+                <p><strong>النقاط:</strong> {{ competition.points }}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>تاريخ البدء:</strong> {{ competition.start_date }}</p>
+                <p><strong>تاريخ الانتهاء:</strong> {{ competition.end_date }}</p>
+                <p><strong>الحالة:</strong> {% if competition.is_active %}<span class="badge bg-success">نشط</span>{% else %}<span class="badge bg-secondary">غير نشط</span>{% endif %}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

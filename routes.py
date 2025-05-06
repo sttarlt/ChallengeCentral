@@ -491,6 +491,12 @@ def competition_details(competition_id):
             else:
                 flash('أنت مشارك بالفعل في هذه المسابقة', 'info')
         
+        # الحصول على أسئلة المسابقة
+        questions = []
+        if current_user.is_authenticated and participation:
+            # جلب أسئلة المسابقة فقط إذا كان المستخدم مشارك
+            questions = competition.get_questions()
+        
         # Get top participants
         top_participants = Participation.query.filter_by(
             competition_id=competition.id
@@ -504,6 +510,7 @@ def competition_details(competition_id):
             competition=competition,
             participation=participation,
             form=form,
+            questions=questions,
             top_participants=top_participants,
             now=now  # Pass current date to template
         )
@@ -511,6 +518,107 @@ def competition_details(competition_id):
         app.logger.error(f"Error in competition_details: {str(e)}")
         flash('حدث خطأ أثناء محاولة عرض تفاصيل المسابقة', 'danger')
         return redirect(url_for('competitions'))
+
+
+@app.route('/competitions/<int:competition_id>/submit-answers', methods=['POST'])
+@login_required
+def submit_answers(competition_id):
+    """معالجة تقديم إجابات المسابقة"""
+    try:
+        # التحقق من وجود المسابقة
+        competition = Competition.query.get_or_404(competition_id)
+        
+        # التحقق من أن المستخدم مشارك بالفعل في المسابقة
+        participation = Participation.query.filter_by(
+            user_id=current_user.id,
+            competition_id=competition.id
+        ).first_or_404()
+        
+        # التحقق من أن المسابقة لا تزال نشطة
+        if not competition.is_active or competition.end_date < datetime.utcnow():
+            flash('لقد انتهت هذه المسابقة ولا يمكن تقديم إجابات', 'warning')
+            return redirect(url_for('competition_details', competition_id=competition.id))
+        
+        # حساب النقاط
+        total_score = 0
+        total_questions = 0
+        correct_answers = 0
+        
+        # الحصول على جميع أسئلة المسابقة
+        questions = competition.get_questions()
+        
+        # التحقق من كل إجابة
+        for question in questions:
+            total_questions += 1
+            answer_key = f'answer_{question.id}'
+            
+            if answer_key in request.form:
+                user_answer = request.form[answer_key]
+                
+                # الإجابة الصحيحة تعتمد على نوع السؤال
+                if question.question_type == 'multiple_choice':
+                    # تحويل الإجابة المستلمة من رقم لنص
+                    try:
+                        option_index = int(user_answer)
+                        options = question.options_list
+                        if 0 <= option_index < len(options):
+                            if str(option_index) == question.correct_answer:
+                                total_score += question.points
+                                correct_answers += 1
+                    except (ValueError, TypeError):
+                        pass
+                        
+                elif question.question_type == 'true_false':
+                    if user_answer == question.correct_answer:
+                        total_score += question.points
+                        correct_answers += 1
+                        
+                elif question.question_type == 'text':
+                    # مقارنة بسيطة للإجابة النصية
+                    # يمكن تطويرها لتكون أكثر مرونة في المستقبل
+                    if user_answer.strip().lower() == question.correct_answer.strip().lower():
+                        total_score += question.points
+                        correct_answers += 1
+        
+        # تحديث نقاط المشاركة
+        participation.score = total_score
+        participation.completed = True
+        db.session.commit()
+        
+        # إشعار المستخدم بالنتيجة
+        flash(f'تم تقديم إجاباتك بنجاح! حصلت على {total_score} نقطة ({correct_answers} من {total_questions} إجابات صحيحة)', 'success')
+        
+        # إضافة نقاط المكافأة إذا كانت هناك نقاط للمسابقة
+        if competition.points > 0:
+            # تحديد النقاط بناءً على نسبة الإجابات الصحيحة
+            if total_questions > 0:
+                success_percentage = (correct_answers / total_questions) * 100
+                
+                if success_percentage >= 80:  # 80% أو أعلى للحصول على كامل النقاط
+                    reward_points = competition.points
+                elif success_percentage >= 50:  # 50% أو أعلى للحصول على نصف النقاط
+                    reward_points = competition.points // 2
+                else:
+                    reward_points = 0
+                
+                if reward_points > 0:
+                    # إضافة النقاط للمستخدم
+                    success = current_user.add_points(
+                        points=reward_points,
+                        transaction_type='competition_reward',
+                        related_id=competition.id,
+                        description=f'مكافأة المشاركة في مسابقة: {competition.title}',
+                        request=request
+                    )
+                    
+                    if success:
+                        flash(f'تهانينا! لقد كسبت {reward_points} كربتو كمكافأة على أدائك الجيد في المسابقة', 'success')
+        
+        return redirect(url_for('competition_details', competition_id=competition.id))
+    except Exception as e:
+        app.logger.error(f"Error in submit_answers: {str(e)}")
+        flash('حدث خطأ أثناء معالجة إجاباتك. يرجى المحاولة مرة أخرى.', 'danger')
+        return redirect(url_for('competition_details', competition_id=competition.id))
 
 
 @app.route('/rewards')
@@ -848,6 +956,168 @@ def admin_edit_competition(competition_id):
         return redirect(url_for('admin_competitions'))
     
     return render_template('admin/competitions.html', form=form, competition=competition)
+
+
+@app.route('/secure-admin-panel-9382/competitions/<int:competition_id>/questions', methods=['GET'])
+@admin_required
+def admin_competition_questions(competition_id):
+    """عرض قائمة أسئلة المسابقة للمشرف"""
+    competition = Competition.query.get_or_404(competition_id)
+    questions = competition.get_questions()
+    
+    return render_template(
+        'admin/competition_questions.html',
+        competition=competition,
+        questions=questions
+    )
+
+
+@app.route('/secure-admin-panel-9382/competitions/<int:competition_id>/questions/new', methods=['GET', 'POST'])
+@admin_required
+def admin_new_question(competition_id):
+    """إضافة سؤال جديد للمسابقة"""
+    competition = Competition.query.get_or_404(competition_id)
+    form = QuestionForm()
+    
+    if form.validate_on_submit():
+        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد
+        options_text = None
+        if form.question_type.data == 'multiple_choice' and form.options.data:
+            import json
+            # تقسيم الخيارات إلى قائمة بناءً على الأسطر
+            options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
+            # تحويل القائمة إلى نص JSON
+            options_text = json.dumps(options_list)
+        
+        # إنشاء سؤال جديد
+        question = Question(
+            competition_id=competition.id,
+            text=form.text.data,
+            options=options_text,
+            correct_answer=form.correct_answer.data,
+            points=form.points.data,
+            order=form.order.data,
+            question_type=form.question_type.data
+        )
+        
+        db.session.add(question)
+        db.session.commit()
+        
+        # تسجيل الحدث
+        log_audit_event(
+            event_type='MANAGEMENT_ACTION',
+            severity='INFO',
+            details=f"تم إضافة سؤال جديد للمسابقة: {competition.title}",
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=request.remote_addr
+        )
+        
+        flash('تم إضافة السؤال بنجاح', 'success')
+        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+    
+    return render_template(
+        'admin/edit_question.html',
+        form=form,
+        competition=competition,
+        is_new=True
+    )
+
+
+@app.route('/secure-admin-panel-9382/competitions/<int:competition_id>/questions/<int:question_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_question(competition_id, question_id):
+    """تعديل سؤال في المسابقة"""
+    competition = Competition.query.get_or_404(competition_id)
+    question = Question.query.get_or_404(question_id)
+    
+    # التحقق من أن السؤال ينتمي للمسابقة المحددة
+    if question.competition_id != competition.id:
+        flash('السؤال غير موجود في هذه المسابقة', 'danger')
+        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+    
+    # إنشاء نموذج مع بيانات السؤال الحالي
+    form = QuestionForm(obj=question)
+    
+    # إذا كان السؤال من نوع اختيار من متعدد، استخراج الخيارات من JSON وتحويلها إلى نص
+    if question.question_type == 'multiple_choice' and question.options:
+        import json
+        try:
+            options_list = json.loads(question.options)
+            form.options.data = '\n'.join(options_list)
+        except:
+            form.options.data = ""
+    
+    if form.validate_on_submit():
+        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد
+        if form.question_type.data == 'multiple_choice' and form.options.data:
+            import json
+            # تقسيم الخيارات إلى قائمة بناءً على الأسطر
+            options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
+            # تحويل القائمة إلى نص JSON
+            question.options = json.dumps(options_list)
+        else:
+            question.options = None
+        
+        # تحديث بيانات السؤال
+        question.text = form.text.data
+        question.correct_answer = form.correct_answer.data
+        question.points = form.points.data
+        question.order = form.order.data
+        question.question_type = form.question_type.data
+        
+        db.session.commit()
+        
+        # تسجيل الحدث
+        log_audit_event(
+            event_type='MANAGEMENT_ACTION',
+            severity='INFO',
+            details=f"تم تعديل سؤال في المسابقة: {competition.title}",
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=request.remote_addr
+        )
+        
+        flash('تم تعديل السؤال بنجاح', 'success')
+        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+    
+    return render_template(
+        'admin/edit_question.html',
+        form=form,
+        competition=competition,
+        question=question,
+        is_new=False
+    )
+
+
+@app.route('/secure-admin-panel-9382/competitions/<int:competition_id>/questions/<int:question_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_question(competition_id, question_id):
+    """حذف سؤال من المسابقة"""
+    competition = Competition.query.get_or_404(competition_id)
+    question = Question.query.get_or_404(question_id)
+    
+    # التحقق من أن السؤال ينتمي للمسابقة المحددة
+    if question.competition_id != competition.id:
+        flash('السؤال غير موجود في هذه المسابقة', 'danger')
+        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+    
+    # حذف السؤال
+    db.session.delete(question)
+    db.session.commit()
+    
+    # تسجيل الحدث
+    log_audit_event(
+        event_type='MANAGEMENT_ACTION',
+        severity='WARNING',
+        details=f"تم حذف سؤال من المسابقة: {competition.title}",
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request.remote_addr
+    )
+    
+    flash('تم حذف السؤال بنجاح', 'success')
+    return redirect(url_for('admin_competition_questions', competition_id=competition.id))
 
 
 @app.route('/admin/rewards', methods=['GET'])

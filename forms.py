@@ -38,6 +38,28 @@ class CompetitionForm(FlaskForm):
     submit = SubmitField('حفظ المسابقة')
 
 
+class QuestionForm(FlaskForm):
+    """نموذج إضافة سؤال للمسابقة"""
+    text = TextAreaField('نص السؤال', validators=[DataRequired()])
+    question_type = SelectField(
+        'نوع السؤال',
+        choices=[
+            ('multiple_choice', 'اختيار من متعدد'),
+            ('true_false', 'صح/خطأ'),
+            ('text', 'إجابة نصية')
+        ],
+        validators=[DataRequired()]
+    )
+    options = TextAreaField(
+        'خيارات الإجابة (اكتب كل خيار في سطر منفصل)',
+        validators=[]
+    )
+    correct_answer = StringField('الإجابة الصحيحة', validators=[DataRequired()])
+    points = IntegerField('النقاط', validators=[DataRequired()], default=1)
+    order = IntegerField('الترتيب', validators=[], default=0)
+    submit = SubmitField('حفظ السؤال')
+
+
 class RewardForm(FlaskForm):
     name = StringField('اسم الجائزة', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('وصف الجائزة', validators=[DataRequired()])
