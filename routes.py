@@ -1662,6 +1662,14 @@ def admin_edit_points_package(package_id):
                           currency_name_plural=currency_name_plural)
 
 
+@app.route('/clear-linked-participations-session', methods=['POST'])
+@admin_required
+def clear_linked_participations_session():
+    """تنظيف بيانات المشاركات المرتبطة من الجلسة بعد غلق النافذة"""
+    if 'linked_participations' in session:
+        session.pop('linked_participations', None)
+    return jsonify({'success': True})
+
 @app.route('/admin/config', methods=['GET', 'POST'])
 @admin_required
 @limiter.limit("20 per minute")  # تقييد معدل الطلبات على إعدادات النظام
