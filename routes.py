@@ -3,7 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import desc, func, or_
 from functools import wraps
 from app import app, db, limiter
-from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral, ReferralIPLog, AdminNotification, APIKey
+from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message, PointsPackage, Referral, ReferralIPLog, AdminNotification, APIKey, Question
 import config
 import referral_security
 from audit_log import log_audit_event, monitor_login_attempts, log_sensitive_action, EVENT_TYPES, SEVERITY_LEVELS
@@ -11,7 +11,7 @@ from forms import (
     LoginForm, RegistrationForm, CompetitionForm, RewardForm,
     ParticipationForm, RedeemRewardForm, RedemptionStatusForm,
     CreateChatRoomForm, SendMessageForm, DirectMessageForm,
-    PointsPackageForm, AdminPointsForm
+    PointsPackageForm, AdminPointsForm, QuestionForm
 )
 from datetime import datetime
 
