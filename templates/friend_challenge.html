@@ -414,7 +414,16 @@ function copyReferralLink() {
         
         // تحديد النص بشكل متكرر لفترة قصيرة لضمان سهولة النسخ
         let selectionTimeout = setTimeout(function keepSelecting() {
+            // تجربة كل طرق التحديد المتاحة بشكل دوري
+            referralField.focus();
             referralField.select();
+            
+            try {
+                // طريقة أكثر دقة للتحديد
+                referralField.setSelectionRange(0, textToCopy.length);
+            } catch (e) {}
+            
+            // استمرار في إعادة محاولة التحديد
             selectionTimeout = setTimeout(keepSelecting, 500);
         }, 500);
         
