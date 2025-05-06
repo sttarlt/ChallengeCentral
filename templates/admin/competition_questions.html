@@ -34,9 +34,16 @@
                     </thead>
                     <tbody>
                         {% for question in questions %}
-                        <tr>
+                        <tr {% if not question.is_active %}class="text-muted"{% endif %}>
                             <td>{{ loop.index }}</td>
-                            <td>{{ question.text|truncate(50) }}</td>
+                            <td>
+                                {% if not question.is_active %}
+                                    <span class="text-decoration-line-through">{{ question.text|truncate(50) }}</span>
+                                    <small class="badge bg-secondary ms-1">غير نشط</small>
+                                {% else %}
+                                    {{ question.text|truncate(50) }}
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if question.question_type == 'multiple_choice' %}
                                     <span class="badge bg-primary">اختيار من متعدد</span>
@@ -44,6 +51,12 @@
                                     <span class="badge bg-success">صح/خطأ</span>
                                 {% elif question.question_type == 'text' %}
                                     <span class="badge bg-info">إجابة نصية</span>
+                                {% elif question.question_type == 'image_choice' %}
+                                    <span class="badge bg-warning">اختيار صورة</span>
+                                {% elif question.question_type == 'short_answer' %}
+                                    <span class="badge bg-secondary">إجابة قصيرة</span>
+                                {% elif question.question_type == 'multiple_answers' %}
+                                    <span class="badge bg-info">إجابات متعددة</span>
                                 {% endif %}
                             </td>
                             <td>{{ question.order }}</td>
@@ -53,6 +66,15 @@
                                     <a href="{{ url_for('admin_edit_question', competition_id=competition.id, question_id=question.id) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-edit"></i> تعديل
                                     </a>
+                                    {% if question.is_active %}
+                                        <a href="{{ url_for('admin_toggle_question_status', competition_id=competition.id, question_id=question.id, action='deactivate') }}" class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-eye-slash"></i> إلغاء تنشيط
+                                        </a>
+                                    {% else %}
+                                        <a href="{{ url_for('admin_toggle_question_status', competition_id=competition.id, question_id=question.id, action='activate') }}" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-eye"></i> تنشيط
+                                        </a>
+                                    {% endif %}
                                     <button type="button" class="btn btn-sm btn-outline-danger" 
                                             data-bs-toggle="modal" 
                                             data-bs-target="#deleteModal{{ question.id }}">
@@ -73,6 +95,15 @@
                                                 <div class="alert alert-warning mt-2">
                                                     <strong>تحذير:</strong> لا يمكن التراجع عن هذا الإجراء.
                                                 </div>
+                                                {% if not question.is_active %}
+                                                    <div class="alert alert-info mt-2">
+                                                        <strong>ملاحظة:</strong> هذا السؤال غير نشط حاليًا.
+                                                    </div>
+                                                {% else %}
+                                                    <div class="alert alert-primary mt-2">
+                                                        <strong>نصيحة:</strong> يمكنك إلغاء تنشيط السؤال بدلاً من حذفه للحفاظ على البيانات المرتبطة.
+                                                    </div>
+                                                {% endif %}
                                             </div>
                                             <div class="modal-footer">
                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
