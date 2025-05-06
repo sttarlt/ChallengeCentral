@@ -11,6 +11,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 
 
 # Configure logging
@@ -169,6 +170,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'يرجى تسجيل الدخول للوصول إلى هذه الصفحة'
 login_manager.login_message_category = 'info'
+
+# إعداد حماية CSRF
+csrf = CSRFProtect(app)
 
 # تكوين حماية معدل الطلبات (Rate Limiting)
 # استخدام IP الحقيقي للمستخدم حتى مع وجود reverse proxy
