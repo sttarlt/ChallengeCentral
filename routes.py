@@ -1083,138 +1083,192 @@ def admin_competition_questions(competition_id):
 @admin_required
 def admin_new_question(competition_id):
     """إضافة سؤال جديد للمسابقة"""
-    competition = Competition.query.get_or_404(competition_id)
-    form = QuestionForm()
+    competition = None
+    form = None
     
-    if form.validate_on_submit():
-        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد أو اختيار مع صورة
-        options_text = None
-        if (form.question_type.data in ['multiple_choice', 'image_choice']) and form.options.data:
-            import json
-            # تقسيم الخيارات إلى قائمة بناءً على الأسطر
-            options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
-            # تحويل القائمة إلى نص JSON
-            options_text = json.dumps(options_list)
+    try:
+        competition = Competition.query.get_or_404(competition_id)
+        form = QuestionForm()
         
-        # إنشاء سؤال جديد
-        # التحقق من وجود قيمة صالحة في حقل رابط الصورة
-        image_url = None
-        if form.image_url.data and form.image_url.data.strip():
-            image_url = form.image_url.data.strip()
+        # إذا تم تقديم النموذج والتحقق من صحته
+        if form.validate_on_submit():
+            options_text = None
             
-        # التحقق من وجود قيمة صالحة في حقل الوقت المحدد
-        time_limit = None
-        if form.time_limit.data and form.time_limit.data > 0:
-            time_limit = form.time_limit.data
-            
-        # إنشاء السؤال بالقيم المناسبة
-        question = Question(
-            competition_id=competition.id,
-            text=form.text.data,
-            options=options_text,
-            correct_answer=form.correct_answer.data,
-            points=form.points.data,
-            order=form.order.data,
-            question_type=form.question_type.data,
-            image_url=image_url,
-            time_limit=time_limit,
-            difficulty=form.difficulty.data
+            try:
+                # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد أو اختيار مع صورة
+                if (form.question_type.data in ['multiple_choice', 'image_choice']) and form.options.data:
+                    import json
+                    options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
+                    options_text = json.dumps(options_list)
+                
+                # التحقق من وجود قيمة صالحة في حقل رابط الصورة
+                image_url = None
+                if form.image_url.data and form.image_url.data.strip():
+                    image_url = form.image_url.data.strip()
+                    
+                # التحقق من وجود قيمة صالحة في حقل الوقت المحدد
+                time_limit = None
+                if form.time_limit.data and form.time_limit.data > 0:
+                    time_limit = form.time_limit.data
+                
+                # إنشاء السؤال
+                question = Question(
+                    competition_id=competition.id,
+                    text=form.text.data,
+                    options=options_text,
+                    correct_answer=form.correct_answer.data,
+                    points=form.points.data,
+                    order=form.order.data,
+                    question_type=form.question_type.data,
+                    image_url=image_url,
+                    time_limit=time_limit,
+                    difficulty=form.difficulty.data
+                )
+                
+                # إضافة وحفظ السؤال في قاعدة البيانات
+                db.session.add(question)
+                db.session.commit()
+                
+                # تسجيل الحدث
+                log_audit_event(
+                    event_type='MANAGEMENT_ACTION',
+                    severity='INFO',
+                    details=f"تم إضافة سؤال جديد للمسابقة: {competition.title}",
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=request.remote_addr
+                )
+                
+                flash('تم إضافة السؤال بنجاح', 'success')
+                return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+                
+            except Exception as e:
+                # استرجاع المعاملة في حالة حدوث خطأ
+                db.session.rollback()
+                app.logger.error(f"خطأ في إنشاء السؤال: {str(e)}")
+                flash(f'حدث خطأ أثناء إنشاء السؤال: {str(e)}', 'danger')
+        
+        # تقديم الصفحة بالنموذج الفارغ أو مع أخطاء التحقق من الصحة
+        return render_template(
+            'admin/edit_question.html',
+            form=form,
+            competition=competition,
+            is_new=True
         )
         
-        db.session.add(question)
-        db.session.commit()
-        
-        # تسجيل الحدث
-        log_audit_event(
-            event_type='MANAGEMENT_ACTION',
-            severity='INFO',
-            details=f"تم إضافة سؤال جديد للمسابقة: {competition.title}",
-            user_id=current_user.id,
-            username=current_user.username,
-            ip_address=request.remote_addr
-        )
-        
-        flash('تم إضافة السؤال بنجاح', 'success')
-        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
-    
-    return render_template(
-        'admin/edit_question.html',
-        form=form,
-        competition=competition,
-        is_new=True
-    )
+    except Exception as e:
+        # معالجة أي خطأ عام
+        db.session.rollback()
+        app.logger.error(f"خطأ في صفحة إضافة سؤال جديد: {str(e)}")
+        flash(f'حدث خطأ: {str(e)}', 'danger')
+        return redirect(url_for('admin_competition_questions', competition_id=competition_id))
 
 
 @app.route('/secure-admin-panel-9382/competitions/<int:competition_id>/questions/<int:question_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def admin_edit_question(competition_id, question_id):
     """تعديل سؤال في المسابقة"""
-    competition = Competition.query.get_or_404(competition_id)
-    question = Question.query.get_or_404(question_id)
+    form = None
+    question = None
+    competition = None
     
-    # التحقق من أن السؤال ينتمي للمسابقة المحددة
-    if question.competition_id != competition.id:
-        flash('السؤال غير موجود في هذه المسابقة', 'danger')
-        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
-    
-    # إنشاء نموذج مع بيانات السؤال الحالي
-    form = QuestionForm(obj=question)
-    
-    # إذا كان السؤال من نوع اختيار من متعدد أو اختيار مع صورة، استخراج الخيارات من JSON وتحويلها إلى نص
-    if question.question_type in ['multiple_choice', 'image_choice'] and question.options:
-        import json
-        try:
-            options_list = json.loads(question.options)
-            form.options.data = '\n'.join(options_list)
-        except:
-            form.options.data = ""
-    
-    if form.validate_on_submit():
-        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد أو اختيار مع صورة
-        if form.question_type.data in ['multiple_choice', 'image_choice'] and form.options.data:
+    try:
+        # الحصول على بيانات المسابقة والسؤال
+        competition = Competition.query.get_or_404(competition_id)
+        question = Question.query.get_or_404(question_id)
+        
+        # التحقق من أن السؤال ينتمي للمسابقة المحددة
+        if question.competition_id != competition.id:
+            flash('السؤال غير موجود في هذه المسابقة', 'danger')
+            return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+        
+        # إنشاء نموذج بدون بيانات في البداية
+        form = QuestionForm()
+        
+        # تعيين القيم الأساسية
+        form.text.data = question.text
+        form.question_type.data = question.question_type
+        form.correct_answer.data = question.correct_answer
+        form.points.data = question.points
+        form.order.data = question.order
+        
+        # تعيين القيم الجديدة بطريقة آمنة
+        if hasattr(question, 'image_url') and question.image_url:
+            form.image_url.data = question.image_url
+            
+        if hasattr(question, 'time_limit') and question.time_limit:
+            form.time_limit.data = question.time_limit
+            
+        if hasattr(question, 'difficulty'):
+            form.difficulty.data = question.difficulty if question.difficulty else 'medium'
+            
+        # إذا كان السؤال من نوع اختيار من متعدد أو اختيار مع صورة، استخراج الخيارات من JSON وتحويلها إلى نص
+        if question.question_type in ['multiple_choice', 'image_choice'] and question.options:
             import json
-            # تقسيم الخيارات إلى قائمة بناءً على الأسطر
-            options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
-            # تحويل القائمة إلى نص JSON
-            question.options = json.dumps(options_list)
-        else:
-            question.options = None
-        
-        # التحقق من وجود قيمة صالحة في حقل رابط الصورة
-        image_url = None
-        if form.image_url.data and form.image_url.data.strip():
-            image_url = form.image_url.data.strip()
-            
-        # التحقق من وجود قيمة صالحة في حقل الوقت المحدد
-        time_limit = None
-        if form.time_limit.data and form.time_limit.data > 0:
-            time_limit = form.time_limit.data
-            
-        # تحديث بيانات السؤال
-        question.text = form.text.data
-        question.correct_answer = form.correct_answer.data
-        question.points = form.points.data
-        question.order = form.order.data
-        question.question_type = form.question_type.data
-        question.image_url = image_url
-        question.time_limit = time_limit
-        question.difficulty = form.difficulty.data
-        
-        db.session.commit()
-        
-        # تسجيل الحدث
-        log_audit_event(
-            event_type='MANAGEMENT_ACTION',
-            severity='INFO',
-            details=f"تم تعديل سؤال في المسابقة: {competition.title}",
-            user_id=current_user.id,
-            username=current_user.username,
-            ip_address=request.remote_addr
-        )
-        
-        flash('تم تعديل السؤال بنجاح', 'success')
-        return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+            try:
+                options_list = json.loads(question.options)
+                form.options.data = '\n'.join(options_list)
+            except:
+                form.options.data = ""
+                
+        # معالجة النموذج عند إرساله
+        if form.validate_on_submit():
+            try:
+                # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد أو اختيار مع صورة
+                if form.question_type.data in ['multiple_choice', 'image_choice'] and form.options.data:
+                    import json
+                    # تقسيم الخيارات إلى قائمة بناءً على الأسطر
+                    options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
+                    # تحويل القائمة إلى نص JSON
+                    question.options = json.dumps(options_list)
+                else:
+                    question.options = None
+                
+                # التحقق من وجود قيمة صالحة في حقل رابط الصورة
+                image_url = None
+                if form.image_url.data and form.image_url.data.strip():
+                    image_url = form.image_url.data.strip()
+                    
+                # التحقق من وجود قيمة صالحة في حقل الوقت المحدد
+                time_limit = None
+                if form.time_limit.data and form.time_limit.data > 0:
+                    time_limit = form.time_limit.data
+                    
+                # تحديث بيانات السؤال
+                question.text = form.text.data
+                question.correct_answer = form.correct_answer.data
+                question.points = form.points.data
+                question.order = form.order.data
+                question.question_type = form.question_type.data
+                question.image_url = image_url
+                question.time_limit = time_limit
+                question.difficulty = form.difficulty.data
+                
+                db.session.commit()
+                
+                # تسجيل الحدث
+                log_audit_event(
+                    event_type='MANAGEMENT_ACTION',
+                    severity='INFO',
+                    details=f"تم تعديل سؤال في المسابقة: {competition.title}",
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    ip_address=request.remote_addr
+                )
+                
+                flash('تم تعديل السؤال بنجاح', 'success')
+                return redirect(url_for('admin_competition_questions', competition_id=competition.id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"خطأ في تحديث بيانات السؤال: {str(e)}")
+                flash(f'حدث خطأ أثناء تحديث بيانات السؤال: {str(e)}', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"خطأ في تحميل بيانات السؤال: {str(e)}")
+        flash(f'حدث خطأ أثناء تحميل بيانات السؤال: {str(e)}', 'danger')
+        return redirect(url_for('admin_competition_questions', competition_id=competition_id))
     
+    # عرض صفحة تعديل السؤال
     return render_template(
         'admin/edit_question.html',
         form=form,
