@@ -662,7 +662,17 @@ def submit_answers(competition_id):
             flash(f'تهانينا! تمت إضافة {total_score} كربتو إلى رصيدك!', 'success')
         
         # حساب وإضافة نقاط المكافأة الإضافية إذا كانت المسابقة تمنح نقاط إضافية
-        if competition.points > 0 and total_questions > 0:
+        # التحقق أولاً مما إذا كان المستخدم قد تلقى بالفعل مكافأة هذه المسابقة
+        already_received_reward = PointsTransaction.query.filter_by(
+            user_id=current_user.id,
+            transaction_type='competition_reward',
+            related_id=competition.id
+        ).first()
+        
+        if already_received_reward:
+            app.logger.info(f"المستخدم {current_user.username} تلقى بالفعل مكافأة المسابقة #{competition.id}. لن يتم إضافة مكافأة مرة أخرى.")
+        elif competition.points > 0 and total_questions > 0:
+            # لم يحصل المستخدم على مكافأة هذه المسابقة من قبل
             success_percentage = (correct_answers / total_questions) * 100
             reward_points = 0
             
