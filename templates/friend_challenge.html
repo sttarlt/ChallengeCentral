@@ -58,27 +58,42 @@
                                 <div class="card-body">
                                     <h5 class="card-title">رابط الدعوة الخاص بك</h5>
                                     <div class="mb-3">
-                                        <!-- استخدام عنصر textarea عوضًا عن input -->
+                                        <!-- استخدام عنصر textarea مع مؤشرات وتنسيقات واضحة -->
                                         <div class="form-floating mb-2">
-                                            <textarea class="form-control" id="referralLink" style="height: 80px; direction: ltr; text-align: left;" readonly>{{ referral_url }}</textarea>
-                                            <label for="referralLink">رابط الدعوة</label>
+                                            <textarea class="form-control border-2" id="referralLink" 
+                                                style="height: 80px; direction: ltr; text-align: left; font-family: monospace; font-size: 1.1em;" 
+                                                readonly>{{ referral_url }}</textarea>
+                                            <label for="referralLink">
+                                                <i class="bi bi-link-45deg"></i> رابط الدعوة
+                                            </label>
                                         </div>
                                         
-                                        <!-- تقسيم الوظائف - زر للنسخ وزر آخر للمشاركة -->
+                                        <!-- تقسيم الوظائف - زر للنسخ وزر آخر للمشاركة مع أيقونات واضحة -->
                                         <div class="d-flex gap-2">
-                                            <button class="btn btn-primary flex-grow-1" type="button" onclick="copyReferralLink()">
-                                                <i class="bi bi-clipboard"></i> نسخ الرابط
+                                            <!-- زر نسخ مع تأثير بصري -->
+                                            <button id="copyButton" class="btn btn-primary flex-grow-1 position-relative" 
+                                                    type="button" onclick="copyReferralLink()">
+                                                <span class="d-flex align-items-center justify-content-center">
+                                                    <i class="bi bi-clipboard me-1"></i> 
+                                                    <span id="copyButtonText">نسخ الرابط</span>
+                                                </span>
+                                                <span id="copySpinner" class="spinner-border spinner-border-sm position-absolute" 
+                                                      role="status" style="display: none; right: 10px;"></span>
                                             </button>
-                                            <!-- زر مشاركة بديل -->
-                                            <a href="https://wa.me/?text={{ referral_url | urlencode }}" target="_blank" class="btn btn-success flex-grow-1">
-                                                <i class="bi bi-share"></i> مشاركة واتساب
+                                            
+                                            <!-- زر مشاركة واتساب محسّن -->
+                                            <a href="https://wa.me/?text={{ referral_url | urlencode }}" 
+                                               target="_blank" 
+                                               class="btn btn-success flex-grow-1 d-flex align-items-center justify-content-center gap-1">
+                                                <i class="bi bi-whatsapp"></i>
+                                                <span>مشاركة واتساب</span>
                                             </a>
                                         </div>
                                     </div>
                                     
-                                    <!-- رسالة أوضح وأكبر عند النسخ -->
-                                    <div id="copyMessage" class="alert alert-success d-none my-2 py-2">
-                                        <i class="bi bi-check-circle-fill"></i> تم نسخ الرابط بنجاح!
+                                    <!-- رسالة تأكيد محسّنة مع أيقونة واضحة -->
+                                    <div id="copyMessage" class="alert d-none my-2 py-2 rounded-3 fade-in">
+                                        <!-- المحتوى سيتم تحديثه ديناميكيًا باستخدام JavaScript -->
                                     </div>
                                 </div>
                             </div>
@@ -191,112 +206,282 @@
 {% block js %}
 <script>
 /**
- * وظيفة محسنة لنسخ رابط الإحالة المتوافقة مع معظم المتصفحات والبيئات
- * بما في ذلك بيئة Replit المحدودة
+ * وظيفة محسنة لنسخ رابط الإحالة متوافقة مع بيئة Replit والمتصفحات المختلفة
+ * تستخدم طرقًا متعددة وتعالج حالات الخطأ بشكل أفضل
  */
 function copyReferralLink() {
-    // الحصول على نص الرابط - انتبه أننا نستخدم value مع input و innerHTML مع textarea
-    var referralTextArea = document.getElementById("referralLink");
-    var referralLink = referralTextArea.value || referralTextArea.innerHTML;
+    console.log("بدء محاولة نسخ الرابط...");
     
-    // تمييز محتوى textarea بالكامل لمساعدة المستخدم
-    referralTextArea.focus();
-    referralTextArea.select();
+    // عناصر واجهة المستخدم
+    var textarea = document.getElementById("referralLink");
+    var copyButton = document.getElementById("copyButton");
+    var copyButtonText = document.getElementById("copyButtonText");
+    var copySpinner = document.getElementById("copySpinner");
     
-    // تجربة خطوات متعددة للنسخ حسب دعم المتصفح
+    // إظهار مؤشر التحميل وتغيير حالة الزر
+    showCopyInProgress(true);
     
-    // 1. تجربة الخطوة الأولى - واجهة Clipboard API الحديثة
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(referralLink)
-            .then(() => {
-                // نجاح الطريقة الحديثة
-                showFeedback(true, "تم نسخ الرابط بنجاح!");
-            })
-            .catch((e) => {
-                console.log("طريقة clipboard API فشلت:", e);
-                // تجربة الطريقة الاحتياطية
-                copyWithExecCommand(referralTextArea, referralLink);
-            });
-    } else {
-        // 2. استخدام الطريقة القديمة - execCommand
-        copyWithExecCommand(referralTextArea, referralLink);
+    // 1. الحصول على النص بشكل صحيح
+    var textToCopy = textarea.value.trim();
+    
+    // التأكد من وجود نص للنسخ
+    if (!textToCopy) {
+        console.error("لا يوجد نص للنسخ!");
+        showFeedback(false, "خطأ: لا يوجد رابط للنسخ");
+        showCopyInProgress(false);
+        return;
+    }
+    
+    console.log("النص المراد نسخه:", textToCopy);
+    
+    // تحديد النص بالكامل لتسهيل النسخ اليدوي
+    textarea.focus();
+    textarea.select();
+    
+    // تأثير بصري على textarea لتوضيح أنه محدد
+    textarea.classList.add("border-primary", "bg-light");
+    
+    // 2. محاولة النسخ بطرق متعددة حسب دعم المتصفح
+    try {
+        // محاولة استخدام واجهة Clipboard API الحديثة (إذا كان السياق آمنًا)
+        if (navigator.clipboard && window.isSecureContext) {
+            console.log("محاولة استخدام Clipboard API...");
+            
+            navigator.clipboard.writeText(textToCopy)
+                .then(() => {
+                    console.log("تم النسخ بنجاح باستخدام Clipboard API");
+                    showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
+                    showCopyInProgress(false, true);
+                })
+                .catch((error) => {
+                    console.warn("فشل Clipboard API:", error);
+                    // ننتقل للطريقة الاحتياطية
+                    copyWithExecCommand(textToCopy);
+                });
+        } else {
+            // في بيئة Replit غالبًا ما نصل إلى هنا (لا يوجد سياق آمن)
+            console.log("Clipboard API غير متوفرة، استخدام الطريقة البديلة...");
+            copyWithExecCommand(textToCopy);
+        }
+    } catch (e) {
+        console.error("خطأ غير متوقع أثناء نسخ النص:", e);
+        // محاولة الطريقة الأخيرة في حالة فشل كل شيء
+        fallbackCopyMethod(textToCopy);
+    }
+    
+    // إزالة التأثير البصري بعد فترة
+    setTimeout(function() {
+        textarea.classList.remove("border-primary", "bg-light");
+    }, 1500);
+    
+    /**
+     * إظهار أو إخفاء مؤشر التحميل وتغيير نص الزر
+     */
+    function showCopyInProgress(isInProgress, success = false) {
+        if (isInProgress) {
+            // إظهار مؤشر التحميل وتغيير نص الزر
+            copySpinner.style.display = "inline-block";
+            copyButtonText.textContent = "جاري النسخ...";
+            copyButton.disabled = true;
+        } else {
+            // إخفاء مؤشر التحميل واستعادة نص الزر
+            copySpinner.style.display = "none";
+            copyButton.disabled = false;
+            
+            if (success) {
+                // إظهار أيقونة النجاح للحظات
+                copyButtonText.innerHTML = '<i class="bi bi-check-lg me-1"></i> تم النسخ';
+                copyButton.classList.remove("btn-primary");
+                copyButton.classList.add("btn-success");
+                
+                // استعادة الحالة الأصلية بعد فترة
+                setTimeout(function() {
+                    copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
+                    copyButton.classList.remove("btn-success");
+                    copyButton.classList.add("btn-primary");
+                }, 2000);
+            } else {
+                // استعادة النص الأصلي
+                copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
+            }
+        }
     }
 }
 
 /**
- * طريقة احتياطية باستخدام الأمر القديم لنسخ النص المحدد
+ * محاولة النسخ باستخدام document.execCommand (طريقة أقدم ولكن مدعومة على نطاق واسع)
  */
-function copyWithExecCommand(element, text) {
-    // محاولة النسخ المباشر للنص المحدد
+function copyWithExecCommand(text) {
+    console.log("محاولة النسخ باستخدام execCommand...");
+    
     try {
+        // محاولة النسخ المباشر من العنصر المحدد حاليًا
         var successful = document.execCommand('copy');
+        
         if (successful) {
+            console.log("تم النسخ بنجاح باستخدام execCommand");
             showFeedback(true, "تم نسخ الرابط!");
+            showCopyInProgress(false, true);
+            return true;
         } else {
-            // إنشاء textarea مؤقتة لمحاولة أخرى
-            fallbackCopyMethod(text);
+            console.warn("فشل execCommand، المحاولة باستخدام عنصر مؤقت...");
+            return fallbackCopyMethod(text);
         }
     } catch (err) {
-        console.error('فشل في نسخ النص المحدد مباشرة:', err);
-        fallbackCopyMethod(text);
+        console.error("خطأ في execCommand:", err);
+        return fallbackCopyMethod(text);
     }
 }
 
 /**
- * طريقة النسخ الاحتياطية النهائية باستخدام عنصر مؤقت
+ * طريقة النسخ الاحتياطية الأخيرة - تعمل في معظم الحالات
+ * تستخدم عنصر مؤقت جديد للنص، أكثر موثوقية في بيئات مختلفة
  */
 function fallbackCopyMethod(text) {
-    // إنشاء عنصر نصي مؤقت
-    var tempInput = document.createElement("textarea");
-    tempInput.value = text;
-    tempInput.style.position = "fixed";
-    tempInput.style.opacity = "0";
-    tempInput.style.top = "0";
+    console.log("استخدام طريقة النسخ الاحتياطية النهائية...");
     
-    // إضافته للصفحة وتحديده ومحاولة النسخ
-    document.body.appendChild(tempInput);
-    tempInput.select();
+    // إنشاء عنصر نصي مؤقت خارج الشاشة مع خصائص لضمان عمله بشكل صحيح
+    var tempElement = document.createElement("textarea");
+    tempElement.value = text;
+    
+    // خصائص مهمة للعمل بشكل صحيح في بيئات مختلفة
+    tempElement.style.position = "fixed";
+    tempElement.style.left = "-9999px";
+    tempElement.style.top = "0";
+    tempElement.style.opacity = "0";
+    // للتوافق مع iOS
+    tempElement.contentEditable = true;
+    tempElement.readOnly = false;
+    
+    // إضافة العنصر للصفحة
+    document.body.appendChild(tempElement);
     
     try {
+        // في iOS نحتاج لهذه الخطوات الإضافية
+        tempElement.focus();
+        tempElement.select();
+        
+        // للتوافق مع iOS
+        var range = document.createRange();
+        range.selectNodeContents(tempElement);
+        
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        tempElement.setSelectionRange(0, text.length);
+        
+        // محاولة النسخ
         var successful = document.execCommand('copy');
+        
         if (successful) {
-            showFeedback(true, "تم نسخ الرابط!");
+            console.log("تم النسخ بنجاح باستخدام الطريقة الاحتياطية");
+            showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
+            showCopyInProgress(false, true);
+            return true;
         } else {
-            showFeedback(false, "تعذر نسخ الرابط تلقائيًا. يرجى تحديده ونسخه يدويًا.");
+            console.warn("فشلت جميع محاولات النسخ التلقائي");
+            // إظهار تعليمات للنسخ اليدوي
+            showFeedback(false, "حاول تحديد الرابط ونسخه يدويًا باستخدام Ctrl+C");
+            showCopyInProgress(false);
+            return false;
         }
     } catch (err) {
-        console.error('فشل جميع محاولات النسخ:', err);
-        showFeedback(false, "تعذر نسخ الرابط. يرجى تحديده بنفسك واستخدام Ctrl+C (أو Cmd+C) لنسخه.");
+        console.error("خطأ في الطريقة الاحتياطية:", err);
+        showFeedback(false, "يرجى تحديد الرابط ونسخه يدويًا");
+        showCopyInProgress(false);
+        return false;
+    } finally {
+        // تنظيف - إزالة العنصر المؤقت بعد الانتهاء
+        document.body.removeChild(tempElement);
     }
-    
-    // إزالة العنصر المؤقت
-    document.body.removeChild(tempInput);
 }
 
 /**
- * عرض تنبيه للمستخدم بنتيجة عملية النسخ
+ * إظهار أو إخفاء مؤشر التحميل وتغيير نص الزر
  */
-function showFeedback(success, message) {
-    var copyMessage = document.getElementById("copyMessage");
+function showCopyInProgress(isInProgress, success = false) {
+    // الحصول على عناصر واجهة المستخدم
+    var copyButton = document.getElementById("copyButton");
+    var copyButtonText = document.getElementById("copyButtonText");
+    var copySpinner = document.getElementById("copySpinner");
     
-    // تحديد نوع ومظهر الرسالة
-    if (success) {
-        copyMessage.classList.remove("alert-warning");
-        copyMessage.classList.add("alert-success");
-        copyMessage.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + message;
-    } else {
-        copyMessage.classList.remove("alert-success");
-        copyMessage.classList.add("alert-warning");
-        copyMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + message;
+    // التأكد من وجود العناصر
+    if (!copyButton || !copyButtonText || !copySpinner) {
+        console.error("لم يتم العثور على عناصر زر النسخ");
+        return;
     }
     
-    // إظهار الرسالة
+    if (isInProgress) {
+        // إظهار مؤشر التحميل وتغيير نص الزر
+        copySpinner.style.display = "inline-block";
+        copyButtonText.textContent = "جاري النسخ...";
+        copyButton.disabled = true;
+    } else {
+        // إخفاء مؤشر التحميل واستعادة نص الزر
+        copySpinner.style.display = "none";
+        copyButton.disabled = false;
+        
+        if (success) {
+            // إظهار أيقونة النجاح للحظات
+            copyButtonText.innerHTML = '<i class="bi bi-check-lg me-1"></i> تم النسخ';
+            copyButton.classList.remove("btn-primary");
+            copyButton.classList.add("btn-success");
+            
+            // استعادة الحالة الأصلية بعد فترة
+            setTimeout(function() {
+                copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
+                copyButton.classList.remove("btn-success");
+                copyButton.classList.add("btn-primary");
+            }, 2000);
+        } else {
+            // استعادة النص الأصلي
+            copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
+        }
+    }
+}
+
+/**
+ * عرض رسالة تأكيد أو تنبيه للمستخدم
+ */
+function showFeedback(success, message) {
+    console.log("عرض رسالة:", message, "نجاح:", success);
+    
+    var copyMessage = document.getElementById("copyMessage");
+    if (!copyMessage) {
+        console.error("لم يتم العثور على عنصر رسالة التأكيد");
+        return;
+    }
+    
+    // إزالة جميع الفئات السابقة أولاً
+    copyMessage.classList.remove("d-none", "alert-success", "alert-warning");
+    
+    // إضافة الفئة المناسبة وتعيين محتوى الرسالة
+    if (success) {
+        copyMessage.classList.add("alert-success");
+        copyMessage.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' + message;
+    } else {
+        copyMessage.classList.add("alert-warning");
+        copyMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>' + message;
+    }
+    
+    // عرض الرسالة بتأثير بسيط
+    copyMessage.style.opacity = "0";
     copyMessage.classList.remove("d-none");
     
-    // إخفاء الرسالة بعد وقت مناسب
+    // تأثير ظهور تدريجي
     setTimeout(function() {
-        copyMessage.classList.add("d-none");
-    }, success ? 2000 : 4000);
+        copyMessage.style.transition = "opacity 0.3s";
+        copyMessage.style.opacity = "1";
+    }, 10);
+    
+    // إخفاء الرسالة بعد فترة مناسبة
+    setTimeout(function() {
+        copyMessage.style.opacity = "0";
+        setTimeout(function() {
+            copyMessage.classList.add("d-none");
+        }, 300);
+    }, success ? 3000 : 5000);
 }
 </script>
 {% endblock %}
