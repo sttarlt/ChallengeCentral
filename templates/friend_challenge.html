@@ -176,62 +176,68 @@
 
 {% block js %}
 <script>
+// حل بطريقة خاصة لمعالجة النسخ في بيئة Replit
 function copyReferralLink() {
-    var copyText = document.getElementById("referralLink");
-    copyText.select();
-    copyText.setSelectionRange(0, 99999); // For mobile devices
+    // 1. إنشاء عنصر textarea مؤقت
+    var tempTextarea = document.createElement("textarea");
+    var referralLink = document.getElementById("referralLink").value;
     
-    // محاولة استخدام واجهة برمجة الحافظة الحديثة
-    if (navigator.clipboard && window.isSecureContext) {
-        // بيئة آمنة، استخدام واجهة برمجة الحافظة الحديثة
-        navigator.clipboard.writeText(copyText.value)
-            .then(() => showCopySuccess())
-            .catch(() => fallbackCopyMethod(copyText));
-    } else {
-        // طريقة بديلة للمتصفحات القديمة أو البيئات غير الآمنة
-        fallbackCopyMethod(copyText);
-    }
-}
-
-// طريقة بديلة للنسخ تعمل في معظم المتصفحات
-function fallbackCopyMethod(copyText) {
+    // 2. تعيين قيمة النص وخصائص العنصر
+    tempTextarea.value = referralLink;
+    tempTextarea.style.position = "fixed";  // منع التمرير للعنصر
+    tempTextarea.style.opacity = "0";       // جعله غير مرئي
+    tempTextarea.style.width = "1px";
+    tempTextarea.style.height = "1px";
+    tempTextarea.style.left = "-9999px";    // وضعه خارج الشاشة
+    
+    // 3. إضافة العنصر إلى الصفحة
+    document.body.appendChild(tempTextarea);
+    
+    // 4. تحديد النص داخل العنصر
+    tempTextarea.focus();
+    tempTextarea.select();
+    
     try {
-        // محاولة النسخ باستخدام أمر document.execCommand (الطريقة القديمة)
+        // 5. محاولة النسخ باستخدام الأمر القديم (الأكثر توافقًا)
         var successful = document.execCommand('copy');
+        
         if (successful) {
-            showCopySuccess();
+            showSuccessMessage();
         } else {
-            showManualCopyMessage();
+            showManualInstructions();
         }
     } catch (err) {
-        console.error('فشل النسخ:', err);
-        showManualCopyMessage();
+        console.error('فشل في نسخ النص: ', err);
+        showManualInstructions();
     }
+    
+    // 6. تنظيف - إزالة العنصر المؤقت
+    document.body.removeChild(tempTextarea);
 }
 
-// إظهار رسالة النجاح
-function showCopySuccess() {
+// عرض رسالة النجاح
+function showSuccessMessage() {
     var copyMessage = document.getElementById("copyMessage");
-    copyMessage.innerHTML = '<i class="bi bi-check-circle"></i> تم نسخ الرابط!';
+    copyMessage.innerHTML = '<i class="bi bi-check-circle"></i> تم نسخ الرابط بنجاح!';
     copyMessage.classList.remove("d-none");
     copyMessage.classList.remove("text-warning");
     copyMessage.classList.add("text-success");
     
-    // إخفاء الرسالة بعد ثانيتين
+    // إخفاء بعد ثانيتين
     setTimeout(function() {
         copyMessage.classList.add("d-none");
     }, 2000);
 }
 
-// إظهار رسالة للنسخ اليدوي في حالة فشل جميع الطرق
-function showManualCopyMessage() {
+// عرض تعليمات النسخ اليدوي إذا فشل النسخ التلقائي
+function showManualInstructions() {
     var copyMessage = document.getElementById("copyMessage");
-    copyMessage.innerHTML = '<i class="bi bi-exclamation-circle"></i> يرجى الضغط Ctrl+C لنسخ الرابط';
+    copyMessage.innerHTML = '<i class="bi bi-exclamation-circle"></i> يرجى استخدام Ctrl+C (أو Cmd+C) لنسخ الرابط';
     copyMessage.classList.remove("d-none");
     copyMessage.classList.remove("text-success");
     copyMessage.classList.add("text-warning");
     
-    // إخفاء الرسالة بعد أربع ثوان (للسماح بوقت أطول للقراءة)
+    // وقت أطول للقراءة
     setTimeout(function() {
         copyMessage.classList.add("d-none");
     }, 4000);
