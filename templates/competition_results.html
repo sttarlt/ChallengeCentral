@@ -1,250 +1,188 @@
-{% extends "layout.html" %}
+{% extends "base.html" %}
 
-{% block title %}نتائج المسابقة - {{ competition.title }}{% endblock %}
+{% block title %}نتائج مسابقة: {{ competition.title }}{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">الرئيسية</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('competitions') }}">المسابقات</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('competition_details', competition_id=competition.id) }}">{{ competition.title }}</a></li>
-                <li class="breadcrumb-item active" aria-current="page">النتائج</li>
-            </ol>
-        </nav>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-lg-8 mx-auto">
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-primary text-white">
-                <h1 class="card-title h3 mb-0">نتائج مسابقة "{{ competition.title }}"</h1>
-            </div>
-            <div class="card-body">
-                <!-- ملخص النتائج -->
-                <div class="text-center mb-5">
-                    <div class="display-1 mb-3">
-                        {% if participation.accuracy >= 80 %}
-                            <i class="fas fa-trophy text-warning"></i>
-                        {% elif participation.accuracy >= 60 %}
-                            <i class="fas fa-medal text-info"></i>
-                        {% elif participation.accuracy >= 40 %}
-                            <i class="fas fa-star text-success"></i>
+<div class="container mt-5">
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">{{ competition.title }}</h3>
+            <span class="badge bg-warning text-dark">النتائج</span>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="text-primary">ملخص النتائج</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>النقاط المكتسبة</th>
+                                <td>{{ participation.score }}</td>
+                            </tr>
+                            <tr>
+                                <th>عدد الإجابات الصحيحة</th>
+                                <td>{{ participation.correct_answers }} من أصل {{ questions|length }}</td>
+                            </tr>
+                            {% if participation.bonus_points > 0 %}
+                            <tr>
+                                <th>المكافآت الإضافية</th>
+                                <td>{{ participation.bonus_points }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if participation.time_bonus > 0 %}
+                            <tr>
+                                <th>مكافأة الوقت</th>
+                                <td>{{ participation.time_bonus }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if participation.penalties > 0 %}
+                            <tr class="table-danger">
+                                <th>الخصومات</th>
+                                <td>-{{ participation.penalties }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="table-primary">
+                                <th>إجمالي النقاط</th>
+                                <td>{{ participation.total_points }}</td>
+                            </tr>
+                            {% if participation.completion_time %}
+                            <tr>
+                                <th>الوقت المستغرق</th>
+                                <td>
+                                    {% set minutes = (participation.completion_time // 60) %}
+                                    {% set seconds = (participation.completion_time % 60) %}
+                                    {{ minutes }} دقيقة و {{ seconds }} ثانية
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="text-primary">الأداء</h5>
+                    <div class="progress mb-3" style="height: 25px;">
+                        {% set percentage = (participation.correct_answers / questions|length * 100)|int %}
+                        <div class="progress-bar {% if percentage >= 80 %}bg-success{% elif percentage >= 50 %}bg-info{% elif percentage >= 30 %}bg-warning{% else %}bg-danger{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ percentage }}%;" 
+                             aria-valuenow="{{ percentage }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                            {{ percentage }}%
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        {% if percentage >= 80 %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-trophy me-2"></i> أداء ممتاز!
+                        </div>
+                        {% elif percentage >= 50 %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-thumbs-up me-2"></i> أداء جيد!
+                        </div>
+                        {% elif percentage >= 30 %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i> أداء متوسط، يمكنك تحسينه.
+                        </div>
                         {% else %}
-                            <i class="fas fa-check-circle text-secondary"></i>
+                        <div class="alert alert-danger">
+                            <i class="fas fa-times-circle me-2"></i> يجب عليك المراجعة والمحاولة مرة أخرى.
+                        </div>
                         {% endif %}
                     </div>
-                    
-                    <h2 class="h1 mb-3">{{ participation.score }} نقطة</h2>
-                    <h5 class="text-muted">لقد أجبت على {{ participation.correct_answers }} من أصل {{ questions|length }} سؤال بشكل صحيح</h5>
-                    
-                    <!-- نسبة الدقة -->
-                    <div class="progress mt-3 mb-1" style="height: 20px;">
-                        <div class="progress-bar 
-                            {% if participation.accuracy >= 80 %}
-                                bg-success
-                            {% elif participation.accuracy >= 50 %}
-                                bg-info
-                            {% else %}
-                                bg-warning
-                            {% endif %}" 
-                            role="progressbar" 
-                            style="width: {{ participation.accuracy }}%" 
-                            aria-valuenow="{{ participation.accuracy }}" 
-                            aria-valuemin="0" 
-                            aria-valuemax="100">
-                            {{ participation.accuracy|round|int }}%
-                        </div>
-                    </div>
-                    <small class="text-muted">نسبة الدقة</small>
-                </div>
-                
-                <!-- تفاصيل النقاط -->
-                <div class="card mb-4">
-                    <div class="card-header bg-light">
-                        <h5 class="card-title mb-0">تفاصيل النقاط</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-borderless">
-                                <tbody>
-                                    <tr>
-                                        <th scope="row">النقاط الأساسية</th>
-                                        <td class="text-end">{{ participation.score }} نقطة</td>
-                                    </tr>
-                                    
-                                    {% if participation.bonus_points > 0 %}
-                                    <tr>
-                                        <th scope="row">نقاط إضافية</th>
-                                        <td class="text-success text-end">+ {{ participation.bonus_points }} نقطة</td>
-                                    </tr>
-                                    {% endif %}
-                                    
-                                    {% if participation.time_bonus > 0 %}
-                                    <tr>
-                                        <th scope="row">مكافأة الوقت</th>
-                                        <td class="text-success text-end">+ {{ participation.time_bonus }} نقطة</td>
-                                    </tr>
-                                    {% endif %}
-                                    
-                                    {% if participation.penalties > 0 %}
-                                    <tr>
-                                        <th scope="row">عقوبات</th>
-                                        <td class="text-danger text-end">- {{ participation.penalties }} نقطة</td>
-                                    </tr>
-                                    {% endif %}
-                                    
-                                    <tr class="border-top">
-                                        <th scope="row">المجموع</th>
-                                        <td class="text-end fw-bold">{{ participation.total_points }} نقطة</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- ملخص الإجابات -->
-                <div class="card mb-4">
-                    <div class="card-header bg-light">
-                        <h5 class="card-title mb-0">ملخص الإجابات</h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            {% for result in results %}
-                            <div class="list-group-item 
-                                {% if result.is_correct %} 
-                                    list-group-item-success 
-                                {% else %} 
-                                    list-group-item-danger 
-                                {% endif %}">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <h6 class="mb-1">سؤال {{ loop.index }}: {{ result.question.text|truncate(70) }}</h6>
-                                    <span class="badge 
-                                        {% if result.is_correct %} 
-                                            bg-success 
-                                        {% else %} 
-                                            bg-danger 
-                                        {% endif %}">
-                                        {% if result.is_correct %}
-                                            <i class="fas fa-check-circle me-1"></i> صحيح
-                                        {% else %}
-                                            <i class="fas fa-times-circle me-1"></i> خطأ
-                                        {% endif %}
-                                    </span>
-                                </div>
-                                
-                                <div class="mb-2">
-                                    {% if result.user_answer %}
-                                        <small class="fw-bold">إجابتك:</small> 
-                                        <span class="
-                                            {% if result.is_correct %}
-                                                text-success
-                                            {% else %}
-                                                text-danger
-                                            {% endif %}">
-                                            {{ result.user_answer_text }}
-                                        </span>
-                                    {% else %}
-                                        <small class="text-muted">لم تجب على هذا السؤال</small>
-                                    {% endif %}
-                                </div>
-                                
-                                {% if not result.is_correct %}
-                                <div class="mb-2">
-                                    <small class="fw-bold">الإجابة الصحيحة:</small> 
-                                    <span class="text-success">{{ result.correct_answer_text }}</span>
-                                </div>
-                                {% endif %}
-                                
-                                {% if result.question.explanation %}
-                                <div class="mt-2 small">
-                                    <div class="alert alert-info mb-0 py-2">
-                                        <i class="fas fa-info-circle me-1"></i> {{ result.question.explanation }}
-                                    </div>
-                                </div>
-                                {% endif %}
-                                
-                                <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <span class="badge bg-secondary">
-                                        {{ {'easy': 'سهل', 'medium': 'متوسط', 'hard': 'صعب'}[result.question.difficulty] }}
-                                    </span>
-                                    <span>
-                                        {% if result.is_correct %}
-                                            <span class="text-success">+{{ result.points_earned }} نقطة</span>
-                                        {% else %}
-                                            <span class="text-danger">+0 نقطة</span>
-                                        {% endif %}
-                                    </span>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- زر العودة و المشاركة -->
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('competition_details', competition_id=competition.id) }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left me-1"></i> العودة للمسابقة
-                    </a>
-                    
-                    <a href="{{ url_for('competitions') }}" class="btn btn-primary">
-                        <i class="fas fa-trophy me-1"></i> المسابقات الأخرى
-                    </a>
-                    
-                    <button class="btn btn-success ms-auto" type="button" 
-                        onclick="shareScore({{ participation.score }}, '{{ competition.title }}')">
-                        <i class="fas fa-share-alt me-1"></i> مشاركة النتيجة
-                    </button>
                 </div>
             </div>
         </div>
     </div>
+    
+    <h4 class="mt-4 mb-3">تفاصيل الإجابات</h4>
+    
+    {% for result in results %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center
+                    {% if result.is_correct %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+            <h5 class="mb-0">سؤال {{ loop.index }}</h5>
+            <span class="badge {% if result.is_correct %}bg-light text-success{% else %}bg-light text-danger{% endif %}">
+                {% if result.is_correct %}
+                <i class="fas fa-check"></i> إجابة صحيحة (+{{ result.points_earned }})
+                {% else %}
+                <i class="fas fa-times"></i> إجابة خاطئة
+                {% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-9">
+                    {% if result.question.difficulty %}
+                    <div class="mb-2">
+                        <span class="badge 
+                            {% if result.question.difficulty == 'easy' %}bg-success{% elif result.question.difficulty == 'medium' %}bg-warning{% else %}bg-danger{% endif %}">
+                            {% if result.question.difficulty == 'easy' %}سهل{% elif result.question.difficulty == 'medium' %}متوسط{% else %}صعب{% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
+                    
+                    <h5>{{ result.question.text }}</h5>
+                    
+                    {% if result.question.image_url %}
+                    <div class="mt-2 mb-3 text-center">
+                        <img src="{{ result.question.image_url }}" alt="صورة السؤال" class="img-fluid rounded" style="max-height: 200px;">
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        <strong>إجابتك: </strong>
+                        <span class="{% if result.is_correct %}text-success{% else %}text-danger{% endif %}">
+                            {{ result.user_answer_text }}
+                        </span>
+                    </div>
+                    
+                    {% if not result.is_correct %}
+                    <div class="mt-2">
+                        <strong>الإجابة الصحيحة: </strong>
+                        <span class="text-success">{{ result.correct_answer_text }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if result.question.explanation and not result.is_correct %}
+                    <div class="mt-3 p-2 bg-light rounded">
+                        <strong>الشرح: </strong>{{ result.question.explanation }}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-3 text-center">
+                    {% if result.is_correct %}
+                    <div class="display-1 text-success">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    {% else %}
+                    <div class="display-1 text-danger">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        {% if result.is_correct %}
+                        <h5 class="text-success">+ {{ result.points_earned }} نقطة</h5>
+                        {% else %}
+                        <h5 class="text-muted">0 نقطة</h5>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <div class="d-flex justify-content-between mt-4 mb-5">
+        <a href="{{ url_for('competition_details', competition_id=competition.id) }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-right me-1"></i> العودة إلى تفاصيل المسابقة
+        </a>
+        <a href="{{ url_for('competitions') }}" class="btn btn-primary">
+            <i class="fas fa-list me-1"></i> جميع المسابقات
+        </a>
+    </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-// دالة مشاركة النتيجة
-function shareScore(score, competitionTitle) {
-    // إنشاء نص المشاركة
-    const shareText = `حصلت على ${score} نقطة في مسابقة "${competitionTitle}" على منصة مسابقاتي!\nجرب الآن: ${window.location.origin}`;
-    
-    // محاولة استخدام واجهة المشاركة الحديثة
-    if (navigator.share) {
-        navigator.share({
-            title: 'نتيجتي في مسابقاتي',
-            text: shareText,
-            url: window.location.href
-        }).catch(err => {
-            // استخدام الطريقة التقليدية كبديل
-            fallbackShare(shareText);
-        });
-    } else {
-        // استخدام الطريقة التقليدية للمتصفحات القديمة
-        fallbackShare(shareText);
-    }
-}
-
-// دالة بديلة للمشاركة
-function fallbackShare(text) {
-    // إنشاء عنصر textarea مؤقت
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    
-    // تحديد النص ونسخه
-    textArea.select();
-    document.execCommand('copy');
-    
-    // إزالة العنصر المؤقت
-    document.body.removeChild(textArea);
-    
-    // عرض رسالة للمستخدم
-    alert('تم نسخ النتيجة! يمكنك الآن لصقها ومشاركتها.');
-}
-</script>
 {% endblock %}

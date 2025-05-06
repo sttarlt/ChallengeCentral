@@ -552,6 +552,14 @@ def submit_answers(competition_id):
         ).first_or_404()
         app.logger.info(f"المستخدم مشارك بالفعل في المسابقة")
         
+        # تحديث عدد المحاولات ووقت آخر محاولة
+        participation.attempts += 1
+        participation.last_attempt_at = datetime.utcnow()
+        
+        # حفظ وقت إكمال المسابقة (بالثواني)
+        if elapsed_time > 0:
+            participation.completion_time = elapsed_time
+        
         # التحقق من أن المسابقة لا تزال نشطة
         now = datetime.utcnow()
         if not competition.is_active:
@@ -567,91 +575,120 @@ def submit_answers(competition_id):
         # الحصول على جميع أسئلة المسابقة
         questions = competition.get_questions()
         app.logger.info(f"عدد الأسئلة في المسابقة: {len(questions)}")
+        total_questions = len(questions)
+        
+        # إنشاء قاموس لتخزين إجابات المستخدم
+        user_answers = {}
         
         # التحقق من كل إجابة
         for question in questions:
-            total_questions += 1
             answer_key = f'answer_{question.id}'
+            result_entry = {
+                'question': question,
+                'is_correct': False,
+                'points_earned': 0,
+                'user_answer': None,
+                'user_answer_text': 'لم تتم الإجابة',
+                'correct_answer_text': '',
+            }
             
             if answer_key in request.form:
                 user_answer = request.form[answer_key]
+                user_answers[str(question.id)] = user_answer
+                result_entry['user_answer'] = user_answer
                 app.logger.debug(f"إجابة المستخدم على السؤال {question.id}: {user_answer}")
                 
-                # الإجابة الصحيحة تعتمد على نوع السؤال
-                if question.question_type == 'multiple_choice':
-                    # الحصول على خيارات السؤال
-                    options = question.options_list
-                    app.logger.debug(f"خيارات السؤال: {options}")
+                # استخدام طريقة check_answer من كائن السؤال
+                is_correct, points_earned, correct_text = question.check_answer(user_answer)
+                
+                if is_correct:
+                    correct_answers += 1
+                    total_score += points_earned
+                    result_entry['is_correct'] = True
+                    result_entry['points_earned'] = points_earned
+                    app.logger.debug(f"إجابة صحيحة! +{points_earned} نقاط")
+                else:
+                    # تطبيق العقوبة إذا كانت مفعلة
+                    if hasattr(competition, 'penalty_for_wrong_answers') and competition.penalty_for_wrong_answers > 0:
+                        penalty = competition.penalty_for_wrong_answers
+                        penalties += penalty
+                        app.logger.debug(f"عقوبة للإجابة الخاطئة: -{penalty} نقطة")
                     
+                    app.logger.debug(f"إجابة خاطئة. الإجابة الصحيحة: '{correct_text}'")
+                
+                # تحديث نص الإجابة للعرض في صفحة النتائج
+                if question.question_type in ['multiple_choice', 'image_choice']:
                     try:
-                        # تحويل إجابة المستخدم إلى رقم
                         option_index = int(user_answer)
-                        
-                        # الحصول على نص الخيار الذي اختاره المستخدم (كنص)
+                        options = question.options_list
                         if 0 <= option_index < len(options):
-                            selected_text = options[option_index]
-                            
-                            # مقارنة النص مع الإجابة الصحيحة المخزنة
-                            if selected_text.strip().lower() == question.correct_answer.strip().lower():
-                                total_score += question.points
-                                correct_answers += 1
-                                app.logger.debug(f"إجابة صحيحة! خيار {option_index} = '{selected_text}' +{question.points} نقاط")
-                            else:
-                                app.logger.debug(f"إجابة خاطئة. اختار المستخدم: '{selected_text}' والصحيحة هي: '{question.correct_answer}'")
-                        else:
-                            app.logger.warning(f"مؤشر خارج النطاق: {option_index} لسؤال يحتوي على {len(options)} خيارات")
-                    except (ValueError, TypeError, IndexError) as e:
-                        app.logger.error(f"خطأ في معالجة إجابة الاختيار المتعدد: {str(e)}")
-                        
+                            result_entry['user_answer_text'] = options[option_index]
+                    except (ValueError, TypeError, IndexError):
+                        result_entry['user_answer_text'] = user_answer
                 elif question.question_type == 'true_false':
-                    if user_answer == question.correct_answer:
-                        total_score += question.points
-                        correct_answers += 1
-                        app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
-                    else:
-                        app.logger.debug(f"إجابة خاطئة. اختار المستخدم: '{user_answer}' والصحيحة هي: '{question.correct_answer}'")
-                        
-                elif question.question_type == 'text':
-                    # مقارنة بسيطة للإجابة النصية
-                    if user_answer.strip().lower() == question.correct_answer.strip().lower():
-                        total_score += question.points
-                        correct_answers += 1
-                        app.logger.debug(f"إجابة صحيحة! +{question.points} نقاط")
-                    else:
-                        app.logger.debug(f"إجابة خاطئة. كتب المستخدم: '{user_answer}' والصحيحة هي: '{question.correct_answer}'")
+                    result_entry['user_answer_text'] = 'صواب' if user_answer.lower() == 'true' else 'خطأ'
+                else:
+                    result_entry['user_answer_text'] = user_answer
+                
+                result_entry['correct_answer_text'] = correct_text
             else:
                 app.logger.debug(f"لم يتم العثور على إجابة للسؤال {question.id}")
+            
+            # إضافة نتيجة هذا السؤال إلى قائمة النتائج
+            results.append(result_entry)
+        
+        # حساب المكافآت الإضافية
+        
+        # مكافأة الإجابة على جميع الأسئلة بشكل صحيح
+        if hasattr(competition, 'bonus_points') and correct_answers == total_questions and competition.bonus_points > 0:
+            bonus_points = competition.bonus_points
+            app.logger.info(f"مكافأة الإجابة على جميع الأسئلة بشكل صحيح: +{bonus_points} نقطة")
+        
+        # حساب مكافأة الوقت (إذا أكمل المسابقة بسرعة)
+        if hasattr(competition, 'has_time_limit') and competition.has_time_limit and elapsed_time > 0:
+            # إذا كان الوقت المتبقي أكثر من نصف الوقت الإجمالي
+            time_remaining_ratio = 1 - (elapsed_time / competition.time_limit)
+            if time_remaining_ratio > 0.5:
+                time_bonus = int(total_score * 0.2)  # 20% مكافأة للوقت السريع
+                app.logger.info(f"مكافأة الوقت السريع: +{time_bonus} نقطة")
         
         app.logger.info(f"النتيجة: {correct_answers} إجابات صحيحة من أصل {total_questions}. المجموع: {total_score} نقطة")
         
-        # تحديث نقاط المشاركة في جدول المشاركة
-        previous_score = participation.score
+        # حفظ إجابات المستخدم كـ JSON
+        import json
+        participation.answers_data = json.dumps(user_answers)
+        
+        # تحديث بيانات المشاركة
         participation.score = total_score
         participation.completed = True
+        participation.correct_answers = correct_answers
+        participation.bonus_points = bonus_points
+        participation.penalties = penalties
+        participation.time_bonus = time_bonus
+        participation.completed_at = datetime.utcnow()
         
         # حفظ التغييرات في جدول المشاركة
         db.session.commit()
-        app.logger.info(f"تم تحديث درجة المشاركة من {previous_score} إلى {total_score}")
-        
-        # إشعار المستخدم بالنتيجة
-        flash(f'تم تقديم إجاباتك بنجاح! حصلت على {total_score} نقطة ({correct_answers} من {total_questions} إجابات صحيحة)', 'success')
+        app.logger.info(f"تم تحديث بيانات المشاركة")
         
         # إضافة النقاط مباشرة إلى رصيد المستخدم (إلا إذا كان مشرفًا)
-        if total_score > 0 and not current_user.is_admin:
+        total_points = total_score + bonus_points + time_bonus - penalties
+        
+        if total_points > 0 and not current_user.is_admin:
             # الاحتفاظ بالنقاط الحالية للمستخدم للمقارنة لاحقًا
             points_before = current_user.points
             
             # إضافة النقاط مباشرة
-            current_user.points += total_score
+            current_user.points += total_points
             
             # تسجيل معاملة النقاط
             transaction = PointsTransaction(
                 user_id=current_user.id,
-                amount=total_score,
+                amount=total_points,
                 balance_after=current_user.points,
                 transaction_type='competition_question_points',
                 related_id=competition.id,
-                description=f'نقاط الإجابات الصحيحة في مسابقة: {competition.title}'
+                description=f'نقاط المسابقة: {competition.title} ({correct_answers}/{total_questions} صحيحة)'
             )
             
             # إضافة معلومات الطلب إذا كانت متوفرة
@@ -666,8 +703,8 @@ def submit_answers(competition_id):
             db.session.add(transaction)
             db.session.commit()
             
-            app.logger.info(f"تمت إضافة {total_score} نقطة لرصيد المستخدم. الرصيد قبل: {points_before}, الرصيد بعد: {current_user.points}")
-            flash(f'تهانينا! تمت إضافة {total_score} كربتو إلى رصيدك!', 'success')
+            app.logger.info(f"تمت إضافة {total_points} نقطة لرصيد المستخدم. الرصيد قبل: {points_before}, الرصيد بعد: {current_user.points}")
+            flash(f'تهانينا! تمت إضافة {total_points} كربتو إلى رصيدك!', 'success')
         
         # حساب وإضافة نقاط المكافأة الإضافية إذا كانت المسابقة تمنح نقاط إضافية
         # التحقق أولاً مما إذا كان المستخدم قد تلقى بالفعل مكافأة هذه المسابقة
@@ -727,7 +764,9 @@ def submit_answers(competition_id):
                 flash(f'تهانينا! لقد كسبت {reward_points} كربتو إضافية كمكافأة على أدائك الجيد في المسابقة.', 'success')
         
         app.logger.info(f"=== اكتملت معالجة الإجابات بنجاح. الرصيد الحالي: {current_user.points} ===")
-        return redirect(url_for('competition_details', competition_id=competition.id))
+        
+        # توجيه المستخدم إلى صفحة النتائج بدلاً من العودة إلى صفحة التفاصيل
+        return redirect(url_for('competition_results', competition_id=competition.id))
         
     except Exception as e:
         db.session.rollback()
@@ -736,6 +775,82 @@ def submit_answers(competition_id):
         flash('حدث خطأ أثناء معالجة إجاباتك. يرجى المحاولة مرة أخرى.', 'danger')
         return redirect(url_for('competition_details', competition_id=competition_id))
 
+
+@app.route('/competitions/<int:competition_id>/results')
+@login_required
+def competition_results(competition_id):
+    """عرض نتائج المسابقة للمستخدم"""
+    competition = Competition.query.get_or_404(competition_id)
+    
+    # التحقق من أن المستخدم شارك في المسابقة
+    participation = Participation.query.filter_by(
+        user_id=current_user.id,
+        competition_id=competition.id
+    ).first_or_404()
+    
+    # التحقق من أن المستخدم أكمل المسابقة
+    if not participation.completed:
+        flash('يجب عليك إكمال المسابقة أولاً لرؤية النتائج', 'warning')
+        return redirect(url_for('competition_details', competition_id=competition.id))
+    
+    # الحصول على أسئلة المسابقة
+    questions = competition.get_questions()
+    
+    # تحليل إجابات المستخدم المخزنة
+    results = []
+    import json
+    try:
+        if participation.answers_data:
+            user_answers = json.loads(participation.answers_data)
+            
+            for question in questions:
+                result_entry = {
+                    'question': question,
+                    'is_correct': False,
+                    'points_earned': 0,
+                    'user_answer': None,
+                    'user_answer_text': 'لم تتم الإجابة',
+                    'correct_answer_text': '',
+                }
+                
+                # التحقق من وجود إجابة لهذا السؤال
+                if str(question.id) in user_answers:
+                    user_answer = user_answers[str(question.id)]
+                    result_entry['user_answer'] = user_answer
+                    
+                    # الحصول على تفاصيل الإجابة الصحيحة
+                    is_correct, points_earned, correct_text = question.check_answer(user_answer)
+                    
+                    result_entry['is_correct'] = is_correct
+                    result_entry['points_earned'] = points_earned
+                    result_entry['correct_answer_text'] = correct_text
+                    
+                    # تحديث نص الإجابة للعرض
+                    if question.question_type in ['multiple_choice', 'image_choice']:
+                        try:
+                            option_index = int(user_answer)
+                            options = question.options_list
+                            if 0 <= option_index < len(options):
+                                result_entry['user_answer_text'] = options[option_index]
+                        except (ValueError, TypeError, IndexError):
+                            result_entry['user_answer_text'] = user_answer
+                    elif question.question_type == 'true_false':
+                        result_entry['user_answer_text'] = 'صواب' if user_answer.lower() == 'true' else 'خطأ'
+                    else:
+                        result_entry['user_answer_text'] = user_answer
+                
+                results.append(result_entry)
+    except (json.JSONDecodeError, TypeError) as e:
+        app.logger.error(f"خطأ في تحليل بيانات الإجابات: {str(e)}")
+        flash('حدث خطأ أثناء تحليل بيانات الإجابات', 'danger')
+    
+    return render_template(
+        'competition_results.html',
+        competition=competition,
+        participation=participation,
+        questions=questions,
+        results=results
+    )
 
 @app.route('/rewards')
 def rewards():
