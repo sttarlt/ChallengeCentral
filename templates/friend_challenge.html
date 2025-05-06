@@ -68,9 +68,9 @@
                                             </label>
                                         </div>
                                         
-                                        <!-- تقسيم الوظائف - زر للنسخ وزر آخر للمشاركة مع أيقونات واضحة -->
-                                        <div class="d-flex gap-2">
-                                            <!-- زر نسخ مع تأثير بصري -->
+                                        <!-- تقسيم الوظائف - أزرار متعددة للنسخ والمشاركة -->
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <!-- زر نسخ مع تأثير بصري - المطور لبيئة Replit -->
                                             <button id="copyButton" class="btn btn-primary flex-grow-1 position-relative" 
                                                     type="button" onclick="copyReferralLink()">
                                                 <span class="d-flex align-items-center justify-content-center">
@@ -81,8 +81,17 @@
                                                       role="status" style="display: none; right: 10px;"></span>
                                             </button>
                                             
-                                            <!-- زر مشاركة واتساب محسّن -->
-                                            <a href="https://wa.me/?text={{ referral_url | urlencode }}" 
+                                            <!-- زر نسخ يدوي احتياطي -->
+                                            <button class="btn btn-outline-primary" 
+                                                   type="button" 
+                                                   onclick="document.getElementById('referralLink').select();">
+                                                <i class="bi bi-cursor-text"></i>
+                                                <span class="d-none d-md-inline-block">تحديد النص</span>
+                                            </button>
+
+                                            <!-- زر مشاركة واتساب مُحسن مع رسالة مخصصة -->
+                                            <a id="whatsappShareButton" href="#" 
+                                               onclick="shareViaWhatsApp(event)"
                                                target="_blank" 
                                                class="btn btn-success flex-grow-1 d-flex align-items-center justify-content-center gap-1">
                                                 <i class="bi bi-whatsapp"></i>
@@ -211,23 +220,33 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log("تم تحميل صفحة تحدي الصديق"); 
     
-    // تحديد النص في مربع الرابط تلقائيًا عند النقر عليه لتسهيل النسخ اليدوي
+    // 1. تحديد النص في مربع الرابط تلقائيًا عند النقر عليه لتسهيل النسخ اليدوي
     var textarea = document.getElementById("referralLink");
     if (textarea) {
         textarea.addEventListener('click', function() {
             this.select();
             console.log("تم تحديد نص الرابط بالنقر");
         });
+        
+        // للمساعدة في الأجهزة المحمولة (iOS + Android)
+        textarea.addEventListener('touchend', function(e) {
+            this.select();
+            console.log("تم تحديد النص عبر اللمس");
+        });
     }
     
-    // تصحيح رابط واتساب ليعمل في كل الأجهزة
-    var whatsappLink = document.querySelector('a[href^="https://wa.me"]');
-    if (whatsappLink && textarea) {
-        var linkValue = textarea.value.trim();
-        if (linkValue) {
-            var encodedText = encodeURIComponent("انضم إلى منصة مسابقاتي واحصل على مكافآت! " + linkValue);
-            whatsappLink.href = "https://wa.me/?text=" + encodedText;
-            console.log("تم تحديث رابط واتساب: " + whatsappLink.href);
+    // 2. إعداد تلميحات مرئية لتوضيح إمكانية تحديد النص بالنقر عليه
+    if (textarea) {
+        // إضافة تلميح بصري أن النص قابل للتحديد
+        textarea.title = "انقر لتحديد النص بالكامل";
+        
+        // إضافة أيقونة تشير إلى إمكانية التحديد
+        var formFloating = textarea.closest('.form-floating');
+        if (formFloating) {
+            var hintSpan = document.createElement('small');
+            hintSpan.className = 'form-text text-muted d-block mt-1 text-start';
+            hintSpan.innerHTML = '<i class="bi bi-info-circle"></i> انقر على الرابط أعلاه لتحديده بالكامل';
+            formFloating.appendChild(hintSpan);
         }
     }
 });
@@ -420,6 +439,46 @@ function showCopyInProgress(isInProgress, success = false) {
             copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
         }
     }
+}
+
+/**
+ * مشاركة الرابط عبر واتساب مع رسالة مخصصة
+ */
+function shareViaWhatsApp(event) {
+    // منع السلوك الافتراضي للرابط
+    event.preventDefault();
+    
+    // الحصول على الرابط من textarea
+    var textarea = document.getElementById("referralLink");
+    if (!textarea) {
+        console.error("لم يتم العثور على عنصر الرابط");
+        return;
+    }
+    
+    var linkValue = textarea.value.trim();
+    if (!linkValue) {
+        console.error("الرابط غير موجود");
+        showFeedback(false, "لا يمكن مشاركة رابط فارغ");
+        return;
+    }
+    
+    // إنشاء رسالة مخصصة للمشاركة
+    var message = "انضم إلى منصة مسابقاتي واحصل على كربتو مجاني! استخدم رابط الدعوة الخاص بي: " + linkValue;
+    
+    // تشفير الرسالة
+    var encodedMessage = encodeURIComponent(message);
+    
+    // إنشاء URL لواتساب
+    var whatsappURL = "https://wa.me/?text=" + encodedMessage;
+    
+    // عرض نافذة جديدة بالرابط
+    window.open(whatsappURL, '_blank');
+    
+    // عرض تأكيد للمستخدم
+    showFeedback(true, "تم فتح واتساب للمشاركة");
+    
+    // تتبع إحصائيات المشاركة (اختياري)
+    console.log("تمت مشاركة الرابط عبر واتساب");
 }
 
 /**
