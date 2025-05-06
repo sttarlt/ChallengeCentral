@@ -491,16 +491,15 @@ def competition_details(competition_id):
             else:
                 flash('أنت مشارك بالفعل في هذه المسابقة', 'info')
         
-        # الحصول على أسئلة المسابقة
-        questions = []
-        if current_user.is_authenticated and participation:
-            # جلب أسئلة المسابقة فقط إذا كان المستخدم مشارك
-            questions = competition.get_questions()
-        
         # Get top participants
         top_participants = Participation.query.filter_by(
             competition_id=competition.id
         ).order_by(desc(Participation.score)).limit(10).all()
+        
+        # Get competition questions
+        questions = []
+        if participation:  # Only show questions to participants
+            questions = competition.get_questions()
         
         # Get current date for template comparisons
         now = datetime.utcnow()
