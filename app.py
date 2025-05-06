@@ -252,6 +252,19 @@ def security_checks():
         return '', 403  # Forbidden
 
 with app.app_context():
+    # تنظيف المعاملات المعلقة في قاعدة البيانات
+    try:
+        engine = db.get_engine()
+        connection = engine.raw_connection()
+        cursor = connection.cursor()
+        cursor.execute("ROLLBACK;")  # إلغاء أي معاملات معلقة
+        connection.commit()
+        cursor.close()
+        connection.close()
+        app.logger.info("تم تنظيف المعاملات المعلقة في قاعدة البيانات")
+    except Exception as e:
+        app.logger.error(f"خطأ في تنظيف المعاملات المعلقة: {str(e)}")
+    
     # Import models
     from models import User, Competition, Reward, Participation, RewardRedemption, ChatRoom, ChatRoomMember, Message
     
