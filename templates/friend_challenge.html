@@ -252,238 +252,90 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * وظيفة متطورة ومحسنة لنسخ رابط الإحالة
- * مع دعم كامل لبيئة Replit المقيدة وجميع المتصفحات الحديثة والقديمة
+ * وظيفة مبسطة لنسخ رابط الإحالة
+ * تعمل بشكل موثوق في بيئة Replit المقيدة
  */
 function copyReferralLink() {
     console.log("بدء عملية نسخ الرابط...");
     
-    // 1. تأمين الوصول إلى العناصر
+    // 1. الوصول إلى عنصر textarea
     var textarea = document.getElementById("referralLink");
     if (!textarea) {
         console.error("خطأ: لم يتم العثور على عنصر الرابط");
-        showFeedback(false, "حدث خطأ في النظام. يرجى المحاولة مرة أخرى.");
+        showFeedback(false, "خطأ في النظام. يرجى المحاولة مرة أخرى.");
         return;
     }
     
-    // 2. إظهار مؤشر التحميل وتغيير حالة الزر
+    // 2. تحديث واجهة المستخدم لإظهار بدء العملية
     showCopyInProgress(true);
     
-    // 3. استخراج النص المراد نسخه
-    var textToCopy = textarea.value.trim();
-    if (!textToCopy) {
-        console.error("خطأ: لا يوجد نص للنسخ");
-        showFeedback(false, "لا يوجد رابط للنسخ!");
-        showCopyInProgress(false);
-        return;
-    }
+    // 3. إظهار تأثير بصري قوي على textarea
+    highlightTextarea(textarea);
     
-    // 4. تحديد النص في كل الحالات (مفيد للنسخ اليدوي)
+    // 4. تحديد النص - الطريقة الأكثر فعالية للنسخ في بيئة Replit
     textarea.focus();
     textarea.select();
     
-    // 5. إضافة تأثير بصري واضح للمستخدم
-    addVisualHighlight(textarea);
-    
-    /**
-     * 6. تحديد بيئة التشغيل - التحقق من بيئة Replit بطريقتين:
-     *   أ. فحص اسم المضيف (hostname)
-     *   ب. اختبار إمكانية الوصول إلى الحافظة (clipboard API)
-     */
-    var isReplit = detectReplitEnvironment();
-    console.log("هل نحن في بيئة Replit؟", isReplit ? "نعم" : "لا");
-    
-    // 7. نهج مختلف حسب البيئة
-    if (isReplit) {
-        // معالجة خاصة لبيئة Replit المقيدة
-        handleReplitCopy(textarea, textToCopy);
-    } else {
-        // معالجة قياسية للمتصفحات العادية
-        handleStandardCopy(textarea, textToCopy);
-    }
-}
-
-/**
- * اكتشاف بيئة Replit بطرق متعددة للتأكد من الدقة
- */
-function detectReplitEnvironment() {
-    // طريقة 1: التحقق من اسم النطاق
-    var isReplitDomain = window.location.hostname.includes('replit') || 
-                         window.location.hostname.includes('repl.co');
-    
-    // طريقة 2: التحقق من سياق الأمان (Replit يستخدم HTTP غير آمن داخليًا)
-    var isInsecureContext = window.isSecureContext === false;
-    
-    // طريقة 3: محاولة الكشف عن قيود الـ Sandbox
-    var hasSandboxRestrictions = false;
+    // 5. محاولة النسخ باستخدام execCommand (الطريقة الكلاسيكية الأكثر توافقًا)
     try {
-        // تحقق من إمكانية الوصول إلى سياق الأمان
-        if (navigator.clipboard === undefined && document.execCommand === undefined) {
-            hasSandboxRestrictions = true;
+        var success = document.execCommand('copy');
+        if (success) {
+            console.log("تم النسخ بنجاح باستخدام execCommand");
+            showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
+            showCopyInProgress(false, true);
+            return;
         }
     } catch (e) {
-        hasSandboxRestrictions = true;
+        console.log("فشل execCommand:", e);
     }
     
-    // اتخاذ القرار النهائي - نعتبر البيئة هي Replit إذا تطابق أي من الشروط
-    return isReplitDomain || isInsecureContext || hasSandboxRestrictions;
+    // 6. إذا فشلت عملية النسخ التلقائي - توجيه المستخدم لنسخ النص يدويًا
+    showManualCopyInstructions(textarea);
 }
 
 /**
- * أسلوب خاص للتعامل مع النسخ في بيئة Replit المقيدة
+ * إضافة تأثير بصري محسن لمساعدة المستخدم على رؤية النص المحدد
  */
-function handleReplitCopy(textarea, textToCopy) {
-    console.log("استخدام طريقة النسخ الخاصة ببيئة Replit...");
-    
-    // 1. زيادة وضوح التأثير البصري
+function highlightTextarea(textarea) {
+    // إضافة تأثيرات بصرية على textarea
     textarea.style.backgroundColor = "#e8f4ff";
     textarea.style.color = "#0d6efd";
     textarea.style.fontWeight = "bold";
+    textarea.classList.add("border-primary");
     
-    // 2. رسالة واضحة للمستخدم
+    // إعادة تحديد النص مرتين للتأكد من العمل في جميع المتصفحات
+    setTimeout(function() {
+        textarea.select();
+    }, 50);
+    
+    // إزالة التأثيرات البصرية بعد فترة كافية
+    setTimeout(function() {
+        textarea.style.transition = "all 0.5s ease";
+        textarea.style.backgroundColor = "";
+        textarea.style.color = "";
+        textarea.style.fontWeight = "";
+        textarea.classList.remove("border-primary");
+    }, 5000);
+}
+
+/**
+ * عرض تعليمات النسخ اليدوي للمستخدم
+ */
+function showManualCopyInstructions(textarea) {
+    // إعادة تحديد النص
+    textarea.select();
+    
+    // عرض رسالة توضح للمستخدم كيفية نسخ النص
     showFeedback(true, "تم تحديد الرابط! استخدم Ctrl+C (أو Cmd+C على Mac) لنسخه");
     
-    // 3. تحديد النص مرة أخرى للتأكد (خاصة لأجهزة الموبايل)
-    var selectionInterval = setInterval(function() {
-        textarea.select();
-    }, 500);
-    
-    // 4. إيقاف التحديد المتكرر بعد 5 ثوان
-    setTimeout(function() {
-        clearInterval(selectionInterval);
-        
-        // 5. عرض نصيحة إضافية إذا كان التحديد لا يزال نشطًا
-        if (document.activeElement === textarea) {
-            showFeedback(true, "تم تحديد الرابط! استمر بالضغط على Ctrl+C (أو Cmd+C) لنسخه");
-        }
-        
-        // 6. إزالة التأثيرات البصرية ببطء
-        setTimeout(function() {
-            textarea.style.transition = "all 0.5s ease";
-            textarea.style.backgroundColor = "";
-            textarea.style.color = "";
-            textarea.style.fontWeight = "";
-        }, 2000);
-    }, 5000);
-    
-    // 7. تغيير حالة الزر للنجاح
+    // تغيير حالة زر النسخ ليشير إلى نجاح العملية
     showCopyInProgress(false, true);
     
-    // 8. إضافة مستمع حدث لاكتشاف نجاح النسخ
-    document.addEventListener('copy', function onCopySuccess() {
+    // إضافة مستمع لحدث النسخ لإظهار تأكيد عند نجاح عملية النسخ
+    document.addEventListener('copy', function onCopyEvent() {
         showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
-        document.removeEventListener('copy', onCopySuccess);
+        document.removeEventListener('copy', onCopyEvent);
     }, { once: true });
-}
-
-/**
- * أسلوب عام للتعامل مع النسخ في المتصفحات القياسية
- */
-function handleStandardCopy(textarea, textToCopy) {
-    console.log("استخدام طرق النسخ القياسية...");
-    
-    // محاولة النسخ بثلاث طرق متتالية
-    tryClipboardAPI()
-        .catch(function() {
-            return tryExecCommand();
-        })
-        .catch(function() {
-            return tryFallbackMethod();
-        })
-        .then(function(method) {
-            console.log("تم النسخ بنجاح باستخدام:", method);
-            showFeedback(true, "تم نسخ الرابط بنجاح! 👍");
-            showCopyInProgress(false, true);
-        })
-        .catch(function(error) {
-            console.error("فشلت جميع محاولات النسخ:", error);
-            // التحويل إلى طريقة النسخ اليدوي كحل أخير
-            handleReplitCopy(textarea, textToCopy);
-        });
-    
-    // 1. الطريقة الأولى: استخدام Clipboard API الحديثة
-    function tryClipboardAPI() {
-        return new Promise(function(resolve, reject) {
-            if (navigator && navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(textToCopy)
-                    .then(function() {
-                        resolve("Clipboard API");
-                    })
-                    .catch(reject);
-            } else {
-                reject("Clipboard API غير متوفرة");
-            }
-        });
-    }
-    
-    // 2. الطريقة الثانية: استخدام document.execCommand
-    function tryExecCommand() {
-        return new Promise(function(resolve, reject) {
-            try {
-                textarea.select();
-                var success = document.execCommand('copy');
-                if (success) {
-                    resolve("execCommand");
-                } else {
-                    reject("فشل execCommand");
-                }
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-    
-    // 3. الطريقة الثالثة: طريقة احتياطية باستخدام عنصر مؤقت
-    function tryFallbackMethod() {
-        return new Promise(function(resolve, reject) {
-            try {
-                var tempElement = document.createElement("textarea");
-                tempElement.value = textToCopy;
-                tempElement.style.position = "fixed";
-                tempElement.style.opacity = "0";
-                document.body.appendChild(tempElement);
-                
-                tempElement.focus();
-                tempElement.select();
-                
-                var success = document.execCommand('copy');
-                document.body.removeChild(tempElement);
-                
-                if (success) {
-                    resolve("fallback method");
-                } else {
-                    reject("فشلت الطريقة الاحتياطية");
-                }
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-}
-
-/**
- * إضافة تأثير بصري محسن لجذب انتباه المستخدم
- */
-function addVisualHighlight(element) {
-    // إضافة تأثير وميض للفت الانتباه
-    element.classList.add("border-primary");
-    
-    var originalBg = element.style.backgroundColor;
-    var originalColor = element.style.color;
-    
-    // تأثير وميض خفيف
-    element.style.transition = "background-color 0.3s ease";
-    element.style.backgroundColor = "#e8f4ff";
-    
-    setTimeout(function() {
-        element.style.backgroundColor = originalBg;
-        
-        // عودة تدريجية للمظهر الطبيعي
-        setTimeout(function() {
-            element.classList.remove("border-primary");
-            element.style.transition = "";
-        }, 2000);
-    }, 300);
 }
 
 /**
@@ -563,6 +415,9 @@ function shareViaWhatsApp(event) {
         // إنشاء URL لواتساب مع رسالة مخصصة
         var whatsappURL = "https://wa.me/?text=" + encodedMessage;
         
+        // تحديد النص للنسخ الاحتياطي
+        textarea.select();
+        
         // عرض نافذة جديدة بالرابط
         var opened = window.open(whatsappURL, '_blank');
         
@@ -570,14 +425,10 @@ function shareViaWhatsApp(event) {
         if (!opened || opened.closed || typeof opened.closed == 'undefined') {
             // الحالة البديلة إذا تم منع الفتح
             console.warn("تم منع فتح النافذة الجديدة");
-            // نسخ الرابط بدلاً من ذلك
-            navigator.clipboard.writeText(message).then(function() {
-                showFeedback(true, "تم نسخ رسالة المشاركة إلى الحافظة");
-            }).catch(function() {
-                // تحديد النص في textarea كخيار بديل
-                textarea.select();
-                showFeedback(false, "يرجى مشاركة الرابط يدويًا عبر واتساب");
-            });
+            
+            // النسخ اليدوي كخيار بديل
+            textarea.select();
+            showFeedback(false, "يرجى نسخ الرابط ومشاركته عبر واتساب يدويًا (Ctrl+C)");
         } else {
             // عرض تأكيد للمستخدم
             showFeedback(true, "تم فتح واتساب للمشاركة");
@@ -586,12 +437,9 @@ function shareViaWhatsApp(event) {
     } catch (error) {
         console.error("خطأ في مشاركة واتساب:", error);
         
-        // الحل البديل - نقل المستخدم إلى صفحة واتساب الرئيسية
-        window.open("https://web.whatsapp.com/", "_blank");
-        
-        // نسخ الرسالة إلى الحافظة للمشاركة اليدوية
+        // تحديد النص للمستخدم ليتمكن من نسخه
         textarea.select();
-        showFeedback(false, "يرجى نسخ الرابط ومشاركته عبر واتساب يدويًا");
+        showFeedback(false, "لم يتم فتح واتساب. يرجى نسخ الرابط ومشاركته يدويًا.");
     }
 }
 
