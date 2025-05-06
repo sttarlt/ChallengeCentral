@@ -100,7 +100,7 @@
                                     </div>
                                     
                                     <!-- رسالة تأكيد محسّنة مع أيقونة واضحة -->
-                                    <div id="copyMessage" class="alert d-none my-2 py-2 rounded-3 fade-in">
+                                    <div id="copyMessage" class="alert my-2 py-2 rounded-3" style="display: none;">
                                         <!-- المحتوى سيتم تحديثه ديناميكيًا باستخدام JavaScript -->
                                     </div>
                                 </div>
@@ -345,28 +345,40 @@ function copyReferralLink() {
     
     // عرض واجهة النجاح
     function showSuccessUI() {
-        // 1. تحديث مظهر الزر
+        console.log("✅ عرض واجهة النجاح");
+        
+        // 1. تحديث مظهر الزر بالكامل
         copyButton.disabled = false;
-        copyButton.className = 'btn btn-success flex-grow-1 position-relative';
+        copyButton.style.backgroundColor = '#198754'; // لون النجاح الأخضر
+        copyButton.style.borderColor = '#198754';
+        copyButton.style.color = 'white';
         copySpinner.style.display = 'none';
         copyButtonText.innerHTML = '<i class="bi bi-check-lg me-1"></i> تم النسخ';
         
-        // 2. إظهار رسالة نجاح
+        // 2. عرض رسالة نجاح واضحة
         if (copyMessage) {
-            copyMessage.className = 'alert alert-success my-2 py-2 rounded-3';
-            copyMessage.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> تم نسخ الرابط بنجاح!';
             copyMessage.style.display = 'block';
+            copyMessage.style.backgroundColor = '#d1e7dd';
+            copyMessage.style.color = '#0f5132';
+            copyMessage.style.border = '1px solid #badbcc';
+            copyMessage.style.borderRadius = '0.375rem';
+            copyMessage.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> <strong>تم نسخ الرابط بنجاح!</strong>';
         }
         
         // 3. إعادة الزر إلى حالته الأصلية بعد فترة
         setTimeout(() => {
-            copyButton.className = 'btn btn-primary flex-grow-1 position-relative';
+            // إعادة تعيين أنماط الزر
+            copyButton.style.backgroundColor = '#0d6efd'; // لون أزرق أساسي
+            copyButton.style.borderColor = '#0d6efd';
             copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
             
-            // إخفاء رسالة النجاح بعد فترة
+            // إخفاء رسالة النجاح تدريجياً
             if (copyMessage) {
+                copyMessage.style.opacity = '0';
+                copyMessage.style.transition = 'opacity 0.5s';
                 setTimeout(() => {
                     copyMessage.style.display = 'none';
+                    copyMessage.style.opacity = '1';
                 }, 500);
             }
             
@@ -379,21 +391,29 @@ function copyReferralLink() {
     
     // عرض واجهة النسخ اليدوي
     function showManualCopyUI() {
+        console.log("⚠️ عرض واجهة النسخ اليدوي");
+        
         // 1. تحديد النص مرة أخرى في الحقل الأساسي
         referralField.focus();
         referralField.select();
         
-        // 2. تحديث مظهر الزر
+        // 2. تحديث مظهر الزر بشكل مباشر
         copyButton.disabled = false;
-        copyButton.className = 'btn btn-info flex-grow-1 position-relative';
+        copyButton.style.backgroundColor = '#0dcaf0'; // لون info
+        copyButton.style.borderColor = '#0dcaf0';
+        copyButton.style.color = 'white';
         copySpinner.style.display = 'none';
         copyButtonText.innerHTML = '<i class="bi bi-hand-index me-1"></i> انسخ يدوياً';
         
-        // 3. إظهار رسالة توجيهية
+        // 3. إظهار رسالة توجيهية واضحة
         if (copyMessage) {
-            copyMessage.className = 'alert alert-info my-2 py-2 rounded-3';
-            copyMessage.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i> اضغط Ctrl+C (أو Cmd+C) لنسخ الرابط';
             copyMessage.style.display = 'block';
+            copyMessage.style.backgroundColor = '#cff4fc';
+            copyMessage.style.color = '#055160';
+            copyMessage.style.border = '1px solid #b6effb';
+            copyMessage.style.borderRadius = '0.375rem';
+            copyMessage.style.padding = '0.75rem 1.25rem';
+            copyMessage.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i> <strong>اضغط Ctrl+C (أو Cmd+C) لنسخ الرابط</strong>';
         }
         
         // 4. تكرار محاولة التحديد لتسهيل النسخ اليدوي
@@ -402,25 +422,44 @@ function copyReferralLink() {
             referralField.select();
         }, 1000);
         
-        // إيقاف التكرار بعد 5 ثوان
+        // 5. إيقاف التكرار بعد 5 ثوان
         setTimeout(() => {
             clearInterval(selectionInterval);
             
-            // استمرار إظهار الرسالة التوجيهية
+            // استمرار إظهار الرسالة التوجيهية بتعليمات أكثر تفصيلاً
             if (copyMessage) {
-                copyMessage.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i> استخدم زر "تحديد النص" ثم Ctrl+C للنسخ';
+                copyMessage.innerHTML = `
+                    <i class="bi bi-info-circle-fill me-2"></i> 
+                    <strong>لنسخ الرابط يدوياً:</strong>
+                    <ol class="mt-2 mb-0">
+                        <li>انقر على زر "تحديد النص" أو حدد النص يدوياً</li>
+                        <li>اضغط Ctrl+C (في ويندوز) أو Cmd+C (في ماك) للنسخ</li>
+                    </ol>
+                `;
             }
             
             // مراقبة حدث النسخ للكشف عن نجاح النسخ اليدوي
             document.addEventListener('copy', function onManualCopy() {
+                console.log("✅ تم اكتشاف حدث النسخ");
+                
                 if (copyMessage) {
-                    copyMessage.className = 'alert alert-success my-2 py-2 rounded-3';
-                    copyMessage.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> تم نسخ الرابط بنجاح!';
+                    // تحديث الرسالة لتُظهر النجاح
+                    copyMessage.style.backgroundColor = '#d1e7dd';
+                    copyMessage.style.color = '#0f5132';
+                    copyMessage.style.border = '1px solid #badbcc';
+                    copyMessage.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> <strong>تم نسخ الرابط بنجاح!</strong>';
                 }
+                
+                // تحديث الزر ليعكس النجاح
+                copyButton.style.backgroundColor = '#198754'; // لون النجاح الأخضر
+                copyButton.style.borderColor = '#198754';
+                copyButtonText.innerHTML = '<i class="bi bi-check-lg me-1"></i> تم النسخ';
                 
                 // إعادة الزر إلى حالته الأصلية بعد فترة
                 setTimeout(() => {
-                    copyButton.className = 'btn btn-primary flex-grow-1 position-relative';
+                    // إعادة تعيين أنماط الزر
+                    copyButton.style.backgroundColor = '#0d6efd'; // لون أزرق أساسي
+                    copyButton.style.borderColor = '#0d6efd';
                     copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
                     
                     // إخفاء رسالة النجاح تدريجياً
@@ -529,11 +568,8 @@ function resetCopyButton(button, buttonText, spinner) {
  * عرض رسالة بتنسيق وتأثيرات مناسبة
  */
 function showMessage(element, isSuccess, message) {
-    // إزالة الفئات السابقة
-    element.classList.remove('d-none', 'alert-success', 'alert-warning');
-    
-    // إضافة الفئة المناسبة
-    element.classList.add(isSuccess ? 'alert-success' : 'alert-warning');
+    // إزالة الفئات السابقة ووضع الفئة المناسبة
+    element.className = 'alert ' + (isSuccess ? 'alert-success' : 'alert-warning') + ' my-2 py-2 rounded-3';
     
     // تعيين المحتوى مع أيقونة مناسبة
     const icon = isSuccess 
@@ -541,10 +577,11 @@ function showMessage(element, isSuccess, message) {
         : '<i class="bi bi-exclamation-triangle-fill me-2"></i>';
     element.innerHTML = icon + message;
     
-    // إظهار الرسالة بتأثير تدريجي
+    // تأكيد إظهار الرسالة بشكل مباشر
+    element.style.display = 'block';
     element.style.opacity = '0';
-    element.classList.remove('d-none');
     
+    // إظهار الرسالة بتأثير تدريجي
     setTimeout(() => {
         element.style.transition = 'opacity 0.3s ease';
         element.style.opacity = '1';
@@ -555,7 +592,7 @@ function showMessage(element, isSuccess, message) {
     setTimeout(() => {
         element.style.opacity = '0';
         setTimeout(() => {
-            element.classList.add('d-none');
+            element.style.display = 'none';
         }, 300);
     }, timeout);
 }
