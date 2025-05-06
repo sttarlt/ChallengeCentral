@@ -445,6 +445,12 @@ class Competition(db.Model):
     end_date = db.Column(db.DateTime, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    time_limit = db.Column(db.Integer, nullable=True)  # الوقت المحدد بالثواني للمسابقة بأكملها
+    randomize_questions = db.Column(db.Boolean, default=False)  # ترتيب الأسئلة بشكل عشوائي
+    show_results_immediately = db.Column(db.Boolean, default=True)  # عرض النتائج فورًا بعد الإرسال
+    allow_multiple_attempts = db.Column(db.Boolean, default=False)  # السماح بعدة محاولات
+    penalty_for_wrong_answers = db.Column(db.Integer, default=0)  # عقوبة الإجابات الخاطئة
+    bonus_points = db.Column(db.Integer, default=0)  # نقاط إضافية للإجابة على جميع الأسئلة بشكل صحيح
     
     # Relationships
     participations = db.relationship('Participation', backref='competition', lazy='dynamic')
@@ -452,7 +458,26 @@ class Competition(db.Model):
     
     def get_questions(self):
         """الحصول على جميع أسئلة المسابقة مرتبة"""
-        return self.questions.order_by(Question.order).all()
+        if self.randomize_questions:
+            import random
+            questions = self.questions.all()
+            random.shuffle(questions)
+            return questions
+        else:
+            return self.questions.order_by(Question.order).all()
+            
+    @property
+    def has_time_limit(self):
+        """التحقق من وجود وقت محدد للمسابقة"""
+        return self.time_limit is not None and self.time_limit > 0
+        
+    @property
+    def total_possible_points(self):
+        """حساب إجمالي النقاط الممكنة في المسابقة"""
+        total = sum(question.points for question in self.questions)
+        if self.bonus_points > 0:
+            total += self.bonus_points
+        return total
 
 
 class Question(db.Model):
@@ -462,13 +487,19 @@ class Question(db.Model):
     text = db.Column(db.Text, nullable=False)  # نص السؤال
     options = db.Column(db.Text, nullable=True)  # خيارات الإجابة (JSON مخزن كنص)
     correct_answer = db.Column(db.String(255), nullable=True)  # الإجابة الصحيحة
-    points = db.Column(db.Integer, default=1)  # النقاط المستحقة لهذا السؤال
     order = db.Column(db.Integer, default=0)  # ترتيب السؤال في المسابقة
-    question_type = db.Column(db.String(20), default='multiple_choice')  # نوع السؤال: multiple_choice, true_false, text, image_choice
+    question_type = db.Column(db.String(20), default='multiple_choice')  # نوع السؤال: multiple_choice, true_false, text, image_choice, short_answer, multiple_answers
     image_url = db.Column(db.String(500), nullable=True)  # رابط الصورة للأسئلة التي تحتوي على صور
     time_limit = db.Column(db.Integer, nullable=True)  # الوقت المحدد للسؤال (بالثواني)
     difficulty = db.Column(db.String(20), default='medium')  # مستوى صعوبة السؤال: easy, medium, hard
+    explanation = db.Column(db.Text, nullable=True)  # شرح الإجابة الصحيحة (يظهر بعد الإجابة)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # استخدام نظام نقاط ديناميكي بدلاً من قيمة ثابتة
+    base_points = db.Column(db.Integer, default=1)  # النقاط الأساسية للإجابة الصحيحة
+    time_bonus_enabled = db.Column(db.Boolean, default=False)  # منح نقاط إضافية للإجابة السريعة
+    time_bonus_factor = db.Column(db.Float, default=0.5)  # معامل النقاط الإضافية (النسبة من الوقت المتبقي)
+    partial_credit_enabled = db.Column(db.Boolean, default=False)  # منح نقاط جزئية للإجابات غير المكتملة
     
     @property
     def options_list(self):
@@ -490,6 +521,118 @@ class Question(db.Model):
     def has_time_limit(self):
         """التحقق مما إذا كان للسؤال وقت محدد"""
         return self.time_limit is not None and self.time_limit > 0
+        
+    @property
+    def points(self):
+        """حساب النقاط بناءً على مستوى الصعوبة"""
+        # النقاط الافتراضية حسب الصعوبة
+        difficulty_multipliers = {
+            'easy': 1,
+            'medium': 2,
+            'hard': 3
+        }
+        
+        # الحصول على المضاعف المناسب حسب مستوى الصعوبة
+        multiplier = difficulty_multipliers.get(self.difficulty, 1)
+        
+        # حساب النقاط النهائية
+        return self.base_points * multiplier
+        
+    def check_answer(self, user_answer):
+        """التحقق من صحة إجابة المستخدم وحساب النقاط
+        
+        Returns:
+            tuple: (صحيح/خطأ, النقاط المكتسبة, نص الإجابة الصحيحة)
+        """
+        is_correct = False
+        points_earned = 0
+        correct_text = ""
+        
+        # للخيارات المتعددة
+        if self.question_type in ['multiple_choice', 'image_choice']:
+            # تحويل الإجابة إلى رقم إذا كانت مخزنة كنص
+            try:
+                user_index = int(user_answer)
+            except (ValueError, TypeError):
+                user_index = -1
+                
+            # تحويل الإجابة الصحيحة إلى رقم إذا كانت مخزنة كنص
+            try:
+                correct_index = int(self.correct_answer)
+            except (ValueError, TypeError):
+                correct_index = -1
+                
+            is_correct = user_index == correct_index
+            
+            # الحصول على نص الإجابة الصحيحة
+            options = self.options_list
+            if 0 <= correct_index < len(options):
+                correct_text = options[correct_index]
+                
+        # للإجابة بصح/خطأ
+        elif self.question_type == 'true_false':
+            is_correct = str(user_answer).lower() == str(self.correct_answer).lower()
+            correct_text = "صواب" if self.correct_answer.lower() == "true" else "خطأ"
+            
+        # للإجابة النصية البسيطة
+        elif self.question_type in ['text', 'short_answer']:
+            # يمكن تحسينها لاحقًا لدعم المطابقة التقريبية أو أن تكون غير حساسة لحالة الأحرف
+            normalized_user_answer = str(user_answer).strip().lower()
+            normalized_correct_answer = str(self.correct_answer).strip().lower()
+            
+            # المطابقة الدقيقة للإجابة النصية
+            is_correct = normalized_user_answer == normalized_correct_answer
+            correct_text = self.correct_answer
+            
+        # للإجابات المتعددة
+        elif self.question_type == 'multiple_answers':
+            import json
+            # نتوقع أن تكون إجابة المستخدم قائمة مفصولة بفواصل أو قائمة فعلية
+            if isinstance(user_answer, str):
+                try:
+                    user_selections = set(json.loads(user_answer))
+                except:
+                    user_selections = set(user_answer.split(','))
+            else:
+                user_selections = set(user_answer)
+                
+            # الإجابة الصحيحة مخزنة كقائمة JSON
+            try:
+                correct_selections = set(json.loads(self.correct_answer))
+            except:
+                correct_selections = set(self.correct_answer.split(','))
+                
+            # حساب درجة التطابق
+            if len(correct_selections) > 0:
+                # إذا تم تمكين الائتمان الجزئي، نحسب نسبة الإجابات الصحيحة
+                if self.partial_credit_enabled:
+                    correct_matches = len(user_selections.intersection(correct_selections))
+                    total_expected = len(correct_selections)
+                    partial_score = correct_matches / total_expected
+                    
+                    # الإجابة صحيحة إذا كانت نسبة التطابق 100٪
+                    is_correct = partial_score == 1.0
+                    
+                    # حساب النقاط الجزئية
+                    points_earned = self.points * partial_score
+                else:
+                    # بدون ائتمان جزئي، الإجابة صحيحة فقط إذا كانت جميع الخيارات مطابقة
+                    is_correct = user_selections == correct_selections
+            else:
+                is_correct = False
+                
+            # تحويل الإجابات الصحيحة إلى نص
+            correct_text = ", ".join([self.options_list[int(i)] for i in correct_selections if i.isdigit() and int(i) < len(self.options_list)])
+        
+        # حساب النقاط النهائية
+        if is_correct:
+            points_earned = self.points
+        elif points_earned == 0 and self.partial_credit_enabled:
+            # يمكن منح نقاط جزئية للإجابات القريبة من الصحيحة حسب نوع السؤال
+            # تحتاج إلى تنفيذ خاص لكل نوع
+            pass
+            
+        return (is_correct, points_earned, correct_text)
 
 
 class Reward(db.Model):
@@ -512,6 +655,40 @@ class Participation(db.Model):
     score = db.Column(db.Integer, default=0)
     completed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completion_time = db.Column(db.Integer, nullable=True)  # الوقت المستغرق لإكمال المسابقة (بالثواني)
+    attempts = db.Column(db.Integer, default=1)  # عدد المحاولات
+    last_attempt_at = db.Column(db.DateTime, nullable=True)  # وقت آخر محاولة
+    answers_data = db.Column(db.Text, nullable=True)  # بيانات الإجابات كـ JSON
+    correct_answers = db.Column(db.Integer, default=0)  # عدد الإجابات الصحيحة
+    bonus_points = db.Column(db.Integer, default=0)  # نقاط إضافية
+    penalties = db.Column(db.Integer, default=0)  # عقوبات
+    time_bonus = db.Column(db.Integer, default=0)  # نقاط إضافية للوقت
+    
+    @property
+    def total_points(self):
+        """إجمالي النقاط بما في ذلك المكافآت والعقوبات"""
+        return self.score + self.bonus_points + self.time_bonus - self.penalties
+        
+    @property
+    def accuracy(self):
+        """نسبة دقة الإجابات (النسبة المئوية للإجابات الصحيحة)"""
+        question_count = self.competition.questions.count()
+        if question_count > 0:
+            return (self.correct_answers / question_count) * 100
+        return 0
+        
+    @property
+    def has_bonus(self):
+        """تحقق مما إذا كان المستخدم قد حصل على نقاط إضافية"""
+        return self.bonus_points > 0
+        
+    @property
+    def completion_status(self):
+        """حالة إكمال المسابقة"""
+        if self.completed:
+            return "مكتمل"
+        else:
+            return "غير مكتمل"
 
 
 class RewardRedemption(db.Model):

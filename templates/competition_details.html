@@ -156,8 +156,35 @@
                                             {% endfor %}
                                             
                                             {% if questions %}
+                                            <!-- قسم لعرض مشغل المؤقت الرئيسي للمسابقة -->
+                                            <div class="mb-4 text-center">
+                                                <div class="card bg-light">
+                                                    <div class="card-body">
+                                                        <h5 class="card-title">الوقت المتبقي</h5>
+                                                        <div id="quiz-timer-container">
+                                                            <h3 id="question-timer" data-time-limit="{{ competition.time_limit or 0 }}" class="display-4 mb-3">00:00</h3>
+                                                            <div class="progress mb-3" style="height: 15px;">
+                                                                <div class="progress-bar bg-success" id="quiz-timer-progress" role="progressbar" style="width: 100%"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- شريط التقدم لعرض الوضع الحالي في المسابقة -->
+                                            <div class="mb-4">
+                                                <div class="progress mb-2" style="height: 20px;">
+                                                    <div class="progress-bar bg-info" id="quiz-progress" role="progressbar" style="width: 0%" 
+                                                        aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                                </div>
+                                                <div class="d-flex justify-content-between">
+                                                    <small>السؤال <span id="current-question-num">1</span> من <span id="total-questions">{{ questions|length }}</span></small>
+                                                    <small><span id="answered-questions">0</span> إجابة من أصل {{ questions|length }}</small>
+                                                </div>
+                                            </div>
+                                            
                                             <div class="d-grid gap-2">
-                                                <button type="submit" class="btn btn-primary">إرسال الإجابات</button>
+                                                <button type="submit" id="submit-answers" class="btn btn-primary btn-lg">إرسال الإجابات</button>
                                             </div>
                                             {% else %}
                                             <div class="alert alert-info">
@@ -249,96 +276,96 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- استدعاء ملف مؤقت الأسئلة -->
+<script src="{{ url_for('static', filename='js/question_timer.js') }}"></script>
+
 <script>
+// بدء تشغيل التصميم التفاعلي للمسابقة
 document.addEventListener('DOMContentLoaded', function() {
-    // التعامل مع مؤقتات الأسئلة
-    const timerElements = document.querySelectorAll('.question-timer');
-    const questionTimers = {};
+    // إضافة متغيرات عامة
+    const form = document.getElementById('questionsForm');
+    const submitButton = document.getElementById('submit-answers');
+    const questionCards = document.querySelectorAll('.question-card');
+    const progressBar = document.getElementById('quiz-progress');
+    const currentQuestionNumSpan = document.getElementById('current-question-num');
+    const totalQuestionsSpan = document.getElementById('total-questions');
+    const answeredQuestionsSpan = document.getElementById('answered-questions');
     
-    // تهيئة المؤقتات لكل سؤال
-    timerElements.forEach(function(timerElement) {
-        const questionId = timerElement.id.split('_')[1];
-        const timeLimit = parseInt(timerElement.dataset.time);
-        const progressBar = document.getElementById(`progress_${questionId}`);
-        const timerText = document.getElementById(`timer_text_${questionId}`);
-        
-        // تخزين معلومات المؤقت
-        questionTimers[questionId] = {
-            timeRemaining: timeLimit,
-            timeLimit: timeLimit,
-            timer: null,
-            progressBar: progressBar,
-            timerText: timerText
-        };
-    });
+    // الأعداد الكلية للمسابقة
+    const totalQuestions = questionCards.length;
+    let answeredQuestions = 0;
     
-    // دالة لتحديث المؤقت
-    function updateTimer(questionId) {
-        const timer = questionTimers[questionId];
-        
-        if (timer.timeRemaining <= 0) {
-            // انتهى الوقت - تعطيل الإجابة
-            clearInterval(timer.timer);
-            timer.progressBar.style.width = '0%';
-            timer.progressBar.classList.remove('bg-success', 'bg-warning');
-            timer.progressBar.classList.add('bg-danger');
-            timer.timerText.textContent = 'انتهى الوقت!';
-            
-            // تعطيل خيارات الإجابة
-            const inputs = document.querySelectorAll(`input[name="answer_${questionId}"]`);
-            inputs.forEach(input => input.disabled = true);
-            
-            return;
-        }
-        
-        // حساب النسبة المئوية للوقت المتبقي
-        const percentage = (timer.timeRemaining / timer.timeLimit) * 100;
-        timer.progressBar.style.width = `${percentage}%`;
-        
-        // تغيير لون شريط التقدم بناءً على الوقت المتبقي
-        if (percentage < 25) {
-            timer.progressBar.classList.remove('bg-success', 'bg-warning');
-            timer.progressBar.classList.add('bg-danger');
-        } else if (percentage < 50) {
-            timer.progressBar.classList.remove('bg-success', 'bg-danger');
-            timer.progressBar.classList.add('bg-warning');
-        }
-        
-        // تحديث النص
-        timer.timerText.textContent = `${timer.timeRemaining} ثانية`;
-        
-        // تقليل الوقت المتبقي
-        timer.timeRemaining--;
+    // وظيفة لتحديث شريط التقدم
+    function updateProgressBar() {
+        const percentage = Math.floor((answeredQuestions / totalQuestions) * 100);
+        progressBar.style.width = `${percentage}%`;
+        progressBar.textContent = `${percentage}%`;
+        progressBar.setAttribute('aria-valuenow', percentage);
+        answeredQuestionsSpan.textContent = answeredQuestions;
     }
     
-    // بدء تشغيل المؤقتات عند ظهور السؤال
-    function initializeTimers() {
-        for (const questionId in questionTimers) {
-            // تعيين مؤقت لكل سؤال
-            questionTimers[questionId].timer = setInterval(function() {
-                updateTimer(questionId);
-            }, 1000);
+    // استمع إلى تغييرات الإدخال في كل سؤال
+    if (questionCards.length > 0) {
+        questionCards.forEach((card, index) => {
+            // البحث عن جميع إدخالات السؤال
+            const inputs = card.querySelectorAll('input[type="radio"], input[type="text"], input[type="checkbox"]');
             
-            // التحديث الأولي للمؤقت
-            updateTimer(questionId);
-        }
-    }
-    
-    // بدء تشغيل المؤقتات
-    if (Object.keys(questionTimers).length > 0) {
-        initializeTimers();
-    }
-    
-    // التعامل مع إرسال النموذج
-    const questionsForm = document.getElementById('questionsForm');
-    if (questionsForm) {
-        questionsForm.addEventListener('submit', function(event) {
-            // إيقاف جميع المؤقتات
-            for (const questionId in questionTimers) {
-                clearInterval(questionTimers[questionId].timer);
-            }
+            inputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    // تحقق مما إذا كان السؤال تمت الإجابة عليه (للمرة الأولى)
+                    const isFirstAnswer = !card.classList.contains('answered');
+                    
+                    if (isFirstAnswer) {
+                        // تحديث العدد وإضافة فئة للسؤال الذي تمت إجابته
+                        answeredQuestions++;
+                        card.classList.add('answered');
+                        
+                        // إنشاء تأثير مرئي للإجابة
+                        card.querySelector('.card-header').classList.add('bg-info');
+                        
+                        // تحديث شريط التقدم
+                        updateProgressBar();
+                    }
+                });
+            });
         });
     }
+    
+    // وظيفة لعرض ملخص نتائج المسابقة
+    function showQuizSummary(event) {
+        // التحقق من وجود أسئلة لم تتم الإجابة عليها
+        if (answeredQuestions < totalQuestions) {
+            if (!confirm('لم تتم الإجابة على جميع الأسئلة. هل أنت متأكد من أنك تريد إرسال الإجابات؟')) {
+                event.preventDefault();
+                return;
+            }
+        }
+        
+        // إضافة حقل مخفي لعدد الأسئلة التي تمت الإجابة عليها
+        const answeredInput = document.createElement('input');
+        answeredInput.type = 'hidden';
+        answeredInput.name = 'answered_count';
+        answeredInput.value = answeredQuestions;
+        form.appendChild(answeredInput);
+    }
+    
+    // استمع إلى إرسال النموذج
+    if (form && submitButton) {
+        form.addEventListener('submit', showQuizSummary);
+    }
+    
+    // تمكين مؤشرات الصعوبة بألوان مختلفة
+    const difficultyBadges = document.querySelectorAll('.badge[data-difficulty]');
+    difficultyBadges.forEach(badge => {
+        const difficulty = badge.getAttribute('data-difficulty');
+        if (difficulty === 'easy') {
+            badge.classList.add('bg-success');
+        } else if (difficulty === 'medium') {
+            badge.classList.add('bg-info');
+        } else if (difficulty === 'hard') {
+            badge.classList.add('bg-danger');
+        }
+    });
 });
 </script>
 {% endblock %}
