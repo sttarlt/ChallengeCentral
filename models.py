@@ -456,15 +456,25 @@ class Competition(db.Model):
     participations = db.relationship('Participation', backref='competition', lazy='dynamic')
     questions = db.relationship('Question', backref='competition', lazy='dynamic')
     
-    def get_questions(self):
-        """الحصول على جميع أسئلة المسابقة مرتبة"""
+    def get_questions(self, include_inactive=False):
+        """الحصول على جميع أسئلة المسابقة مرتبة
+        
+        Args:
+            include_inactive (bool): ما إذا كان يجب تضمين الأسئلة غير النشطة، يستخدم في واجهة الإدارة
+        """
+        # فلترة حسب حالة التنشيط إذا لزم الأمر
+        query = self.questions
+        if not include_inactive:
+            query = query.filter_by(is_active=True)
+            
+        # ترتيب الأسئلة عشوائياً أو حسب الترتيب المحدد
         if self.randomize_questions:
             import random
-            questions = self.questions.all()
+            questions = query.all()
             random.shuffle(questions)
             return questions
         else:
-            return self.questions.order_by(Question.order).all()
+            return query.order_by(Question.order).all()
             
     @property
     def has_time_limit(self):

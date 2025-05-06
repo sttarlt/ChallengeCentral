@@ -5,17 +5,44 @@
 {% block content %}
 <div class="card shadow mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0 text-primary">أسئلة المسابقة "{{ competition.title }}"</h5>
+        <div>
+            <h5 class="mb-0 text-primary">أسئلة المسابقة "{{ competition.title }}"</h5>
+            <small class="text-muted">
+                الأسئلة النشطة: {{ active_questions }} من {{ total_questions }}
+                {% if active_questions != total_questions %}
+                    <span class="badge bg-warning ms-2">{{ total_questions - active_questions }} أسئلة غير نشطة</span>
+                {% endif %}
+            </small>
+        </div>
         <a href="{{ url_for('admin_competitions') }}" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-right me-1"></i> العودة للمسابقات
         </a>
     </div>
     <div class="card-body">
-        <div class="row mb-4">
-            <div class="col-md-12 text-start">
+        <div class="row mb-4 align-items-center">
+            <div class="col-md-6 text-start">
                 <a href="{{ url_for('admin_new_question', competition_id=competition.id) }}" class="btn btn-primary">
                     <i class="fas fa-plus me-1"></i> إضافة سؤال جديد
                 </a>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('admin_competition_questions', competition_id=competition.id) }}" 
+                       class="btn btn-sm {% if filter_type is none %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+                        <i class="fas fa-list-ul"></i> عرض الكل
+                        {% if filter_type is none %}<span class="badge bg-light text-dark ms-1">{{ total_questions }}</span>{% endif %}
+                    </a>
+                    <a href="{{ url_for('admin_competition_questions', competition_id=competition.id) }}?filter=active" 
+                       class="btn btn-sm {% if filter_type == 'active' %}btn-success{% else %}btn-outline-success{% endif %}">
+                        <i class="fas fa-eye"></i> النشطة فقط
+                        {% if filter_type == 'active' %}<span class="badge bg-light text-dark ms-1">{{ filtered_count }}</span>{% endif %}
+                    </a>
+                    <a href="{{ url_for('admin_competition_questions', competition_id=competition.id) }}?filter=inactive" 
+                       class="btn btn-sm {% if filter_type == 'inactive' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                        <i class="fas fa-eye-slash"></i> غير النشطة فقط
+                        {% if filter_type == 'inactive' %}<span class="badge bg-light text-dark ms-1">{{ filtered_count }}</span>{% endif %}
+                    </a>
+                </div>
             </div>
         </div>
         

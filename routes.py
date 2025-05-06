@@ -1194,12 +1194,34 @@ def admin_edit_competition(competition_id):
 def admin_competition_questions(competition_id):
     """عرض قائمة أسئلة المسابقة للمشرف"""
     competition = Competition.query.get_or_404(competition_id)
-    questions = competition.get_questions()
+    
+    # التحقق من وجود فلتر للأسئلة
+    filter_type = request.args.get('filter', None)
+    
+    # للمشرفين، نحتاج إلى عرض جميع الأسئلة بما في ذلك الأسئلة غير النشطة
+    all_questions = competition.get_questions(include_inactive=True)
+    
+    # تطبيق الفلتر إذا كان موجوداً
+    if filter_type == 'active':
+        questions = [q for q in all_questions if q.is_active]
+    elif filter_type == 'inactive':
+        questions = [q for q in all_questions if not q.is_active]
+    else:
+        questions = all_questions
+    
+    # حساب إحصائيات الأسئلة
+    total_questions = len(all_questions)
+    active_questions = sum(1 for q in all_questions if q.is_active)
+    filtered_count = len(questions)
     
     return render_template(
         'admin/competition_questions.html',
         competition=competition,
-        questions=questions
+        questions=questions,
+        total_questions=total_questions,
+        active_questions=active_questions,
+        filter_type=filter_type,
+        filtered_count=filtered_count
     )
 
 
