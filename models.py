@@ -432,6 +432,35 @@ class Competition(db.Model):
     
     # Relationships
     participations = db.relationship('Participation', backref='competition', lazy='dynamic')
+    questions = db.relationship('Question', backref='competition', lazy='dynamic')
+    
+    def get_questions(self):
+        """الحصول على جميع أسئلة المسابقة مرتبة"""
+        return self.questions.order_by(Question.order).all()
+
+
+class Question(db.Model):
+    """نموذج سؤال في المسابقة"""
+    id = db.Column(db.Integer, primary_key=True)
+    competition_id = db.Column(db.Integer, db.ForeignKey('competition.id'), nullable=False)
+    text = db.Column(db.Text, nullable=False)  # نص السؤال
+    options = db.Column(db.Text, nullable=True)  # خيارات الإجابة (JSON مخزن كنص)
+    correct_answer = db.Column(db.String(255), nullable=True)  # الإجابة الصحيحة
+    points = db.Column(db.Integer, default=1)  # النقاط المستحقة لهذا السؤال
+    order = db.Column(db.Integer, default=0)  # ترتيب السؤال في المسابقة
+    question_type = db.Column(db.String(20), default='multiple_choice')  # نوع السؤال: multiple_choice, true_false, text
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    @property
+    def options_list(self):
+        """تحويل خيارات الإجابة من JSON إلى قائمة Python"""
+        import json
+        if self.options:
+            try:
+                return json.loads(self.options)
+            except:
+                return []
+        return []
 
 
 class Reward(db.Model):
