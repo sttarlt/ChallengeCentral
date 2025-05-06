@@ -588,17 +588,30 @@ def submit_answers(competition_id):
         flash(f'تم تقديم إجاباتك بنجاح! حصلت على {total_score} نقطة ({correct_answers} من {total_questions} إجابات صحيحة)', 'success')
         
         # أولا: إضافة نقاط الأسئلة التي تمت الإجابة عليها بشكل صحيح
+        app.logger.info(f"submit_answers: total_score={total_score}, user={current_user.username}")
         if total_score > 0:
-            success = current_user.add_points(
-                points=total_score,
-                transaction_type='competition_question_points',
-                related_id=competition.id,
-                description=f'نقاط الإجابات الصحيحة في مسابقة: {competition.title}',
-                request=request
-            )
+            # تسجيل النقاط التي سيتم إضافتها
+            app.logger.info(f"Adding {total_score} points to user {current_user.username} for competition {competition.id}")
             
-            if success:
-                flash(f'تهانينا! لقد كسبت {total_score} كربتو من الإجابات الصحيحة', 'success')
+            # استدعاء واضح لـ add_points مع تجنب المشاكل المحتملة
+            try:
+                success = current_user.add_points(
+                    points=total_score,
+                    transaction_type='competition_question_points',
+                    related_id=competition.id,
+                    description=f'نقاط الإجابات الصحيحة في مسابقة: {competition.title}',
+                    request=request
+                )
+                
+                app.logger.info(f"Result of adding points: {success}")
+                
+                if success:
+                    flash(f'تهانينا! لقد كسبت {total_score} كربتو من الإجابات الصحيحة', 'success')
+                else:
+                    app.logger.error(f"Failed to add points to user {current_user.username}")
+            except Exception as e:
+                app.logger.error(f"Exception adding points: {str(e)}")
+                db.session.rollback()
         
         # ثانيا: إضافة نقاط المكافأة الإضافية إذا كانت هناك نقاط للمسابقة
         if competition.points > 0:

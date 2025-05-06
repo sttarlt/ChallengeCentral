@@ -117,7 +117,18 @@ class User(UserMixin, db.Model):
             request (Flask.request): كائن الطلب للحصول على معلومات مثل IP و User-Agent
             from_admin (bool): إذا كانت True، سيتم خصم النقاط من حساب المشرف المركزي
         """
-        if points <= 0:
+        from app import app, db
+        
+        # تحويل النقاط إلى عدد صحيح للتأكد
+        try:
+            points_to_add = int(points)
+            app.logger.info(f"Adding points: {points_to_add} to user {self.username} (ID: {self.id})")
+        except (ValueError, TypeError):
+            app.logger.error(f"Invalid points value: {points}, type: {type(points)}")
+            return False
+        
+        if points_to_add <= 0:
+            app.logger.warning(f"Cannot add non-positive points: {points_to_add}")
             return False
             
         try:
@@ -130,35 +141,40 @@ class User(UserMixin, db.Model):
                     return False
                 
                 # التحقق من وجود نقاط كافية في حساب المشرف
-                if admin.points < points:
-                    app.logger.error(f"لا توجد نقاط كافية في حساب المشرف. المتوفر: {admin.points}, المطلوب: {points}")
+                if admin.points < points_to_add:
+                    app.logger.error(f"لا توجد نقاط كافية في حساب المشرف. المتوفر: {admin.points}, المطلوب: {points_to_add}")
                     return False
                 
                 # خصم النقاط من حساب المشرف
-                admin.points -= points
+                admin.points -= points_to_add
                 admin_transaction = PointsTransaction(
                     user_id=admin.id,
-                    amount=-points,
+                    amount=-points_to_add,
                     balance_after=admin.points,
                     transaction_type=f"admin_deduction_{transaction_type}",
                     related_id=related_id,
-                    description=f"خصم {points} كربتو من حساب المشرف لـ {description}",
+                    description=f"خصم {points_to_add} كربتو من حساب المشرف لـ {description}",
                     created_by_id=created_by_id or self.id
                 )
                 
                 if request:
                     admin_transaction.ip_address = self.get_client_ip(request)
-                    admin_transaction.user_agent = request.user_agent.string
+                    admin_transaction.user_agent = request.user_agent.string if request.user_agent else None
                 
                 db.session.add(admin_transaction)
             
+            # تسجيل حالة النقاط قبل التعديل
+            previous_points = self.points
+            app.logger.info(f"Previous points: {previous_points}")
+            
             # إضافة النقاط للمستخدم
-            self.points += points
+            self.points += points_to_add
+            app.logger.info(f"New points: {self.points}")
             
             # إنشاء سجل العملية
             transaction = PointsTransaction(
                 user_id=self.id,
-                amount=points,
+                amount=points_to_add,
                 balance_after=self.points,
                 transaction_type=transaction_type,
                 related_id=related_id,
