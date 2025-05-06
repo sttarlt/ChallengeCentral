@@ -188,7 +188,7 @@ def create_admin_notification(event_type, event_data):
         db.session.rollback()
         audit_logger.error(f"فشل في إنشاء إشعار للمشرفين: {str(e)}")
 
-def monitor_login_attempts(username, success, ip_address, details=None):
+def monitor_login_attempts(username, success, ip_address, details=None, is_admin=False):
     """
     مراقبة محاولات تسجيل الدخول واكتشاف محاولات القوة الغاشمة
     
@@ -197,6 +197,7 @@ def monitor_login_attempts(username, success, ip_address, details=None):
         success: هل نجحت محاولة تسجيل الدخول
         ip_address: عنوان IP الذي تمت منه محاولة تسجيل الدخول
         details: تفاصيل إضافية
+        is_admin: هل هي محاولة تسجيل دخول لحساب مشرف (متطلبات أمان أكثر صرامة)
     """
     from datetime import timedelta
     from app import app
@@ -235,27 +236,61 @@ def monitor_login_attempts(username, success, ip_address, details=None):
         app.login_attempts[username_key] = []
     app.login_attempts[username_key].append(now)
     
-    # اكتشاف محاولات القوة الغاشمة
+    # اكتشاف محاولات القوة الغاشمة والتعامل معها
     if not success:
-        # إذا كان هناك أكثر من 5 محاولات فاشلة خلال 5 دقائق من نفس IP
+        # زيادة حساسية الكشف لحسابات المشرفين
+        threshold_ip = 3 if is_admin else 5
+        threshold_username = 2 if is_admin else 3
+        
+        # إذا كان هناك محاولات فاشلة متكررة خلال 5 دقائق من نفس IP
         recent_ip_attempts = [t for t in app.login_attempts[ip_key] if now - t < timedelta(minutes=5)]
-        if len(recent_ip_attempts) >= 5:
+        if len(recent_ip_attempts) >= threshold_ip:
+            # حدد زمن الإقفال بناءً على عدد المحاولات
+            if is_admin:
+                # للمشرفين، منع الوصول لفترة أطول لكل محاولة إضافية
+                lockout_minutes = min(30 * (len(recent_ip_attempts) - threshold_ip + 1), 240)  # بحد أقصى 4 ساعات
+            else:
+                # للمستخدمين العاديين
+                lockout_minutes = min(10 * (len(recent_ip_attempts) - threshold_ip + 1), 60)  # بحد أقصى ساعة واحدة
+            
+            # تسجيل حالة القفل في متغير عام على مستوى التطبيق
+            if not hasattr(app, 'ip_lockouts'):
+                app.ip_lockouts = {}
+            
+            app.ip_lockouts[ip_address] = now + timedelta(minutes=lockout_minutes)
+            
+            # تسجيل حدث في سجل التدقيق
             log_audit_event(
                 event_type='SUSPICIOUS_ACTIVITY',
                 severity='ALERT',
-                details=f"تم رصد {len(recent_ip_attempts)} محاولات فاشلة لتسجيل الدخول خلال 5 دقائق من نفس عنوان IP",
+                details=f"تم رصد {len(recent_ip_attempts)} محاولات فاشلة لتسجيل الدخول خلال 5 دقائق من نفس عنوان IP. تم منع الوصول لمدة {lockout_minutes} دقيقة.",
                 username=username,
                 ip_address=ip_address,
                 notify_admin=True
             )
         
-        # إذا كان هناك أكثر من 3 محاولات فاشلة خلال 5 دقائق لنفس اسم المستخدم
+        # إذا كان هناك محاولات فاشلة متكررة خلال 5 دقائق لنفس اسم المستخدم
         recent_username_attempts = [t for t in app.login_attempts[username_key] if now - t < timedelta(minutes=5)]
-        if len(recent_username_attempts) >= 3:
+        if len(recent_username_attempts) >= threshold_username:
+            # حدد زمن الإقفال بناءً على عدد المحاولات
+            if is_admin:
+                # للمشرفين، منع الوصول لفترة أطول لكل محاولة إضافية
+                lockout_minutes = min(20 * (len(recent_username_attempts) - threshold_username + 1), 120)  # بحد أقصى ساعتين
+            else:
+                # للمستخدمين العاديين
+                lockout_minutes = min(5 * (len(recent_username_attempts) - threshold_username + 1), 30)  # بحد أقصى 30 دقيقة
+            
+            # تسجيل حالة القفل في متغير عام على مستوى التطبيق
+            if not hasattr(app, 'username_lockouts'):
+                app.username_lockouts = {}
+            
+            app.username_lockouts[username] = now + timedelta(minutes=lockout_minutes)
+            
+            # تسجيل حدث في سجل التدقيق
             log_audit_event(
                 event_type='SUSPICIOUS_ACTIVITY',
                 severity='ALERT',
-                details=f"تم رصد {len(recent_username_attempts)} محاولات فاشلة لتسجيل الدخول خلال 5 دقائق لاسم المستخدم {username}",
+                details=f"تم رصد {len(recent_username_attempts)} محاولات فاشلة لتسجيل الدخول خلال 5 دقائق لاسم المستخدم {username}. تم منع الوصول لمدة {lockout_minutes} دقيقة.",
                 username=username,
                 ip_address=ip_address,
                 notify_admin=True

@@ -603,7 +603,7 @@ def points_pricing():
 
 # Admin routes
 @app.route('/secure-admin-panel-9382/authenticate', methods=['GET', 'POST'])
-@limiter.limit("5 per minute, 20 per hour")  # حماية معدل الطلبات للوصول إلى واجهة المشرف
+@limiter.limit("5 per minute, 15 per hour, 50 per day")  # حماية معدل الطلبات المحسنة للوصول إلى واجهة المشرف
 def admin_login():
     # إذا كان المستخدم مسجل دخول بالفعل كمشرف، يتم توجيهه إلى لوحة التحكم مباشرة
     if current_user.is_authenticated and current_user.is_admin:
@@ -614,9 +614,54 @@ def admin_login():
         logout_user()
         flash('تم تسجيل خروجك. يرجى تسجيل الدخول كمشرف', 'info')
     
+    # التحقق من قفل عنوان IP
+    ip_address = request.remote_addr
+    if 'X-Forwarded-For' in request.headers:
+        ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+    
+    # التحقق من وجود قفل لعنوان IP
+    now = datetime.utcnow()
+    if hasattr(app, 'ip_lockouts') and ip_address in app.ip_lockouts:
+        lockout_time = app.ip_lockouts[ip_address]
+        if now < lockout_time:
+            # حساب الوقت المتبقي للقفل
+            remaining_minutes = int((lockout_time - now).total_seconds() / 60) + 1
+            
+            # تسجيل محاولة الوصول أثناء فترة القفل
+            log_audit_event(
+                event_type='SUSPICIOUS_ACTIVITY',
+                severity='ALERT',
+                details=f"محاولة وصول إلى لوحة التحكم أثناء فترة القفل من عنوان IP: {ip_address}",
+                ip_address=ip_address,
+                notify_admin=True
+            )
+            
+            flash(f'تم تجاوز الحد الأقصى من المحاولات. يرجى الانتظار {remaining_minutes} دقيقة قبل المحاولة مرة أخرى.', 'danger')
+            return render_template('admin/locked.html', remaining_minutes=remaining_minutes)
+    
     form = LoginForm()
     if form.validate_on_submit():
         app.logger.debug(f"Login attempt with email: {form.email.data}")
+        
+        # التحقق من وجود قفل لاسم المستخدم (البريد الإلكتروني)
+        if hasattr(app, 'username_lockouts') and form.email.data in app.username_lockouts:
+            lockout_time = app.username_lockouts[form.email.data]
+            if now < lockout_time:
+                # حساب الوقت المتبقي للقفل
+                remaining_minutes = int((lockout_time - now).total_seconds() / 60) + 1
+                
+                # تسجيل محاولة الوصول أثناء فترة القفل
+                log_audit_event(
+                    event_type='SUSPICIOUS_ACTIVITY',
+                    severity='ALERT',
+                    details=f"محاولة تسجيل دخول للحساب {form.email.data} أثناء فترة القفل",
+                    username=form.email.data,
+                    ip_address=ip_address,
+                    notify_admin=True
+                )
+                
+                flash(f'تم تجاوز الحد الأقصى من المحاولات. يرجى الانتظار {remaining_minutes} دقيقة قبل المحاولة مرة أخرى.', 'danger')
+                return render_template('admin/locked.html', remaining_minutes=remaining_minutes)
         
         # البحث عن المستخدم بالبريد الإلكتروني
         user = User.query.filter_by(email=form.email.data).first()
@@ -624,19 +669,47 @@ def admin_login():
         if user:
             app.logger.debug(f"User found: {user.username}, is_admin: {user.is_admin}")
             
+            # استدعاء أداة التحقق من قوة كلمة المرور
+            from password_validator import is_strong_password
+            
             # التحقق من كلمة المرور
             if user.check_password(form.password.data):
                 app.logger.debug("Password check passed")
                 
                 # التحقق من أن المستخدم هو مشرف
                 if user.is_admin:
-                    app.logger.debug("User is admin, logging in")
+                    # التحقق من قوة كلمة المرور للمشرف
+                    is_valid, message = is_strong_password(form.password.data, is_admin=True)
+                    
+                    if not is_valid:
+                        # كلمة المرور ضعيفة، نقوم بتنبيه المستخدم وتسجيل الدخول مع إظهار تحذير
+                        login_user(user)
+                        
+                        # تسجيل تحذير حول ضعف كلمة المرور
+                        log_audit_event(
+                            event_type='SECURITY_WARNING',
+                            severity='WARNING',
+                            details=f"تسجيل دخول ناجح للمشرف باستخدام كلمة مرور ضعيفة: {message}",
+                            user_id=user.id,
+                            username=user.username,
+                            ip_address=ip_address,
+                            notify_admin=True
+                        )
+                        
+                        flash(f'تنبيه أمني: {message} - يرجى تغيير كلمة المرور إلى كلمة مرور أقوى في أقرب وقت.', 'warning')
+                        return redirect(url_for('admin_dashboard'))
+                    
+                    app.logger.debug("User is admin with strong password, logging in")
                     login_user(user)
                     
-                    # الحصول على عنوان IP
-                    ip_address = request.remote_addr
-                    if 'X-Forwarded-For' in request.headers:
-                        ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                    # تسجيل محاولة دخول ناجحة مع تحديد أنها لحساب مشرف
+                    monitor_login_attempts(
+                        username=user.username,
+                        success=True, 
+                        ip_address=ip_address, 
+                        details=f"تسجيل دخول ناجح للمشرف من المتصفح {request.user_agent.browser}",
+                        is_admin=True
+                    )
                     
                     # تسجيل تسجيل الدخول الناجح للمشرف
                     log_audit_event(
@@ -656,11 +729,6 @@ def admin_login():
                     app.logger.debug("User is not admin")
                     app.logger.warning(f"Non-admin user {user.username} attempted to access admin panel")
                     
-                    # الحصول على عنوان IP
-                    ip_address = request.remote_addr
-                    if 'X-Forwarded-For' in request.headers:
-                        ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-                    
                     # تسجيل محاولة وصول غير مصرح بها للوحة التحكم
                     log_audit_event(
                         event_type='SUSPICIOUS_ACTIVITY',
@@ -677,27 +745,18 @@ def admin_login():
             else:
                 app.logger.debug("Password check failed")
                 
-                # الحصول على عنوان IP
-                ip_address = request.remote_addr
-                if 'X-Forwarded-For' in request.headers:
-                    ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-                
-                # تسجيل محاولة تسجيل دخول فاشلة
+                # تسجيل محاولة تسجيل دخول فاشلة مع تحديد أنها لحساب مشرف
                 monitor_login_attempts(
                     username=user.username,
                     success=False, 
                     ip_address=ip_address, 
-                    details=f"محاولة فاشلة لتسجيل الدخول للوحة التحكم: كلمة مرور خاطئة"
+                    details=f"محاولة فاشلة لتسجيل الدخول للوحة التحكم: كلمة مرور خاطئة",
+                    is_admin=user.is_admin
                 )
                 
                 flash('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'danger')
         else:
             app.logger.debug(f"No user found with email: {form.email.data}")
-            
-            # الحصول على عنوان IP
-            ip_address = request.remote_addr
-            if 'X-Forwarded-For' in request.headers:
-                ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
             
             # تسجيل محاولة تسجيل دخول فاشلة لبريد إلكتروني غير موجود
             monitor_login_attempts(
@@ -712,7 +771,7 @@ def admin_login():
     return render_template('admin/login.html', form=form)
 
 
-@app.route('/admin/dashboard')
+@app.route('/secure-admin-panel-9382/dashboard')
 @admin_required
 def admin_dashboard():
     
@@ -739,7 +798,7 @@ def admin_dashboard():
     )
 
 
-@app.route('/admin/competitions', methods=['GET'])
+@app.route('/secure-admin-panel-9382/competitions', methods=['GET'])
 @admin_required
 def admin_competitions():
     
@@ -747,7 +806,7 @@ def admin_competitions():
     return render_template('admin/competitions.html', competitions=competitions)
 
 
-@app.route('/admin/competitions/new', methods=['GET', 'POST'])
+@app.route('/secure-admin-panel-9382/competitions/new', methods=['GET', 'POST'])
 @admin_required
 def admin_new_competition():
     
