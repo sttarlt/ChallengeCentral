@@ -1087,9 +1087,9 @@ def admin_new_question(competition_id):
     form = QuestionForm()
     
     if form.validate_on_submit():
-        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد
+        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد أو اختيار مع صورة
         options_text = None
-        if form.question_type.data == 'multiple_choice' and form.options.data:
+        if (form.question_type.data in ['multiple_choice', 'image_choice']) and form.options.data:
             import json
             # تقسيم الخيارات إلى قائمة بناءً على الأسطر
             options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
@@ -1097,6 +1097,17 @@ def admin_new_question(competition_id):
             options_text = json.dumps(options_list)
         
         # إنشاء سؤال جديد
+        # التحقق من وجود قيمة صالحة في حقل رابط الصورة
+        image_url = None
+        if form.image_url.data and form.image_url.data.strip():
+            image_url = form.image_url.data.strip()
+            
+        # التحقق من وجود قيمة صالحة في حقل الوقت المحدد
+        time_limit = None
+        if form.time_limit.data and form.time_limit.data > 0:
+            time_limit = form.time_limit.data
+            
+        # إنشاء السؤال بالقيم المناسبة
         question = Question(
             competition_id=competition.id,
             text=form.text.data,
@@ -1104,7 +1115,10 @@ def admin_new_question(competition_id):
             correct_answer=form.correct_answer.data,
             points=form.points.data,
             order=form.order.data,
-            question_type=form.question_type.data
+            question_type=form.question_type.data,
+            image_url=image_url,
+            time_limit=time_limit,
+            difficulty=form.difficulty.data
         )
         
         db.session.add(question)
@@ -1146,8 +1160,8 @@ def admin_edit_question(competition_id, question_id):
     # إنشاء نموذج مع بيانات السؤال الحالي
     form = QuestionForm(obj=question)
     
-    # إذا كان السؤال من نوع اختيار من متعدد، استخراج الخيارات من JSON وتحويلها إلى نص
-    if question.question_type == 'multiple_choice' and question.options:
+    # إذا كان السؤال من نوع اختيار من متعدد أو اختيار مع صورة، استخراج الخيارات من JSON وتحويلها إلى نص
+    if question.question_type in ['multiple_choice', 'image_choice'] and question.options:
         import json
         try:
             options_list = json.loads(question.options)
@@ -1156,8 +1170,8 @@ def admin_edit_question(competition_id, question_id):
             form.options.data = ""
     
     if form.validate_on_submit():
-        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد
-        if form.question_type.data == 'multiple_choice' and form.options.data:
+        # معالجة الخيارات إذا كان نوع السؤال اختيار من متعدد أو اختيار مع صورة
+        if form.question_type.data in ['multiple_choice', 'image_choice'] and form.options.data:
             import json
             # تقسيم الخيارات إلى قائمة بناءً على الأسطر
             options_list = [option.strip() for option in form.options.data.split('\n') if option.strip()]
@@ -1166,12 +1180,25 @@ def admin_edit_question(competition_id, question_id):
         else:
             question.options = None
         
+        # التحقق من وجود قيمة صالحة في حقل رابط الصورة
+        image_url = None
+        if form.image_url.data and form.image_url.data.strip():
+            image_url = form.image_url.data.strip()
+            
+        # التحقق من وجود قيمة صالحة في حقل الوقت المحدد
+        time_limit = None
+        if form.time_limit.data and form.time_limit.data > 0:
+            time_limit = form.time_limit.data
+            
         # تحديث بيانات السؤال
         question.text = form.text.data
         question.correct_answer = form.correct_answer.data
         question.points = form.points.data
         question.order = form.order.data
         question.question_type = form.question_type.data
+        question.image_url = image_url
+        question.time_limit = time_limit
+        question.difficulty = form.difficulty.data
         
         db.session.commit()
         
