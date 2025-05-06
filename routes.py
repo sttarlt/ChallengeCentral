@@ -701,19 +701,19 @@ def submit_answers(competition_id):
                         transaction_type='competition_reward',
                         related_id=competition.id,
                         description=f'مكافأة المشاركة في مسابقة: {competition.title}'
-                )
-                
-                # إضافة معلومات الطلب إذا كانت متوفرة
-                if request:
-                    ip_address = request.remote_addr
-                    if 'X-Forwarded-For' in request.headers:
-                        ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-                    transaction.ip_address = ip_address
-                    if hasattr(request, 'user_agent') and request.user_agent:
-                        transaction.user_agent = request.user_agent.string
-                
-                db.session.add(transaction)
-                db.session.commit()
+                    )
+                    
+                    # إضافة معلومات الطلب إذا كانت متوفرة
+                    if request:
+                        ip_address = request.remote_addr
+                        if 'X-Forwarded-For' in request.headers:
+                            ip_address = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+                        transaction.ip_address = ip_address
+                        if hasattr(request, 'user_agent') and request.user_agent:
+                            transaction.user_agent = request.user_agent.string
+                    
+                    db.session.add(transaction)
+                    db.session.commit()
                 
                 app.logger.info(f"تمت إضافة {reward_points} نقطة إضافية كمكافأة. الرصيد قبل: {points_before}, الرصيد بعد: {current_user.points}")
                 flash(f'تهانينا! لقد كسبت {reward_points} كربتو إضافية كمكافأة على أدائك الجيد في المسابقة.', 'success')
@@ -1186,31 +1186,42 @@ def admin_edit_question(competition_id, question_id):
         # إنشاء نموذج بدون بيانات في البداية
         form = QuestionForm()
         
-        # تعيين القيم الأساسية
-        form.text.data = question.text
-        form.question_type.data = question.question_type
-        form.correct_answer.data = question.correct_answer
-        form.points.data = question.points
-        form.order.data = question.order
-        
-        # تعيين القيم الجديدة بطريقة آمنة
-        if hasattr(question, 'image_url') and question.image_url:
-            form.image_url.data = question.image_url
-            
-        if hasattr(question, 'time_limit') and question.time_limit:
-            form.time_limit.data = question.time_limit
-            
-        if hasattr(question, 'difficulty'):
-            form.difficulty.data = question.difficulty if question.difficulty else 'medium'
-            
-        # إذا كان السؤال من نوع اختيار من متعدد أو اختيار مع صورة، استخراج الخيارات من JSON وتحويلها إلى نص
-        if question.question_type in ['multiple_choice', 'image_choice'] and question.options:
-            import json
+        # تعيين القيم فقط عند العرض الأولي (GET request)
+        if request.method == 'GET':
             try:
-                options_list = json.loads(question.options)
-                form.options.data = '\n'.join(options_list)
-            except:
-                form.options.data = ""
+                # تعيين القيم الأساسية
+                form.text.data = question.text
+                form.question_type.data = question.question_type
+                form.correct_answer.data = question.correct_answer
+                form.points.data = question.points
+                form.order.data = question.order
+                
+                # تعيين القيم الجديدة بطريقة أكثر أمانًا
+                # الاستعلام عن وجود الصفوف في الجدول أولاً
+                try:
+                    # تعيين قيمة الصورة إذا كانت موجودة
+                    form.image_url.data = question.image_url if question.image_url else ""
+                    
+                    # تعيين قيمة الوقت المحدد إذا كانت موجودة
+                    form.time_limit.data = question.time_limit if question.time_limit else None
+                    
+                    # تعيين قيمة مستوى الصعوبة
+                    form.difficulty.data = question.difficulty if question.difficulty else 'medium'
+                except AttributeError as e:
+                    app.logger.warning(f"AttributeError while setting form values: {str(e)}")
+                
+                # إذا كان السؤال من نوع اختيار من متعدد أو اختيار مع صورة، استخراج الخيارات من JSON وتحويلها إلى نص
+                if question.question_type in ['multiple_choice', 'image_choice'] and question.options:
+                    import json
+                    try:
+                        options_list = json.loads(question.options)
+                        form.options.data = '\n'.join(options_list)
+                    except Exception as e:
+                        app.logger.error(f"خطأ في تحميل خيارات السؤال: {str(e)}")
+                        form.options.data = ""
+            except Exception as e:
+                app.logger.error(f"خطأ عام في تحميل بيانات السؤال: {str(e)}")
+                app.logger.exception(e)
                 
         # معالجة النموذج عند إرساله
         if form.validate_on_submit():
