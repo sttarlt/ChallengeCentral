@@ -1,0 +1,147 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}
+{% if is_new %}إضافة سؤال جديد{% else %}تعديل السؤال{% endif %} - لوحة التحكم
+{% endblock %}
+
+{% block admin_content %}
+<div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 text-primary">
+            {% if is_new %}إضافة سؤال جديد{% else %}تعديل سؤال{% endif %} - {{ competition.title }}
+        </h5>
+        <a href="{{ url_for('admin_competition_questions', competition_id=competition.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-right me-1"></i> العودة للأسئلة
+        </a>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{% if is_new %}{{ url_for('admin_new_question', competition_id=competition.id) }}{% else %}{{ url_for('admin_edit_question', competition_id=competition.id, question_id=question.id) }}{% endif %}" class="needs-validation">
+            {{ form.hidden_tag() }}
+            
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <label for="text" class="form-label">نص السؤال *</label>
+                    {{ form.text(id="text", class="form-control" + (" is-invalid" if form.text.errors else ""), placeholder="اكتب نص السؤال هنا", rows=3) }}
+                    {% if form.text.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.text.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="question_type" class="form-label">نوع السؤال *</label>
+                    {{ form.question_type(id="question_type", class="form-select" + (" is-invalid" if form.question_type.errors else "")) }}
+                    {% if form.question_type.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.question_type.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="points" class="form-label">النقاط *</label>
+                    {{ form.points(id="points", class="form-control" + (" is-invalid" if form.points.errors else ""), placeholder="1") }}
+                    {% if form.points.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.points.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="order" class="form-label">الترتيب</label>
+                    {{ form.order(id="order", class="form-control" + (" is-invalid" if form.order.errors else ""), placeholder="0") }}
+                    {% if form.order.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.order.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="form-text">ترتيب عرض السؤال (0 = افتراضي)</div>
+                </div>
+            </div>
+            
+            <div class="row mb-3" id="optionsSection">
+                <div class="col-md-12">
+                    <label for="options" class="form-label">خيارات الإجابة</label>
+                    {{ form.options(id="options", class="form-control" + (" is-invalid" if form.options.errors else ""), placeholder="اكتب كل خيار في سطر منفصل", rows=5) }}
+                    {% if form.options.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.options.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="form-text">للأسئلة متعددة الخيارات فقط. اكتب كل خيار في سطر منفصل.</div>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <label for="correct_answer" class="form-label">الإجابة الصحيحة *</label>
+                    {{ form.correct_answer(id="correct_answer", class="form-control" + (" is-invalid" if form.correct_answer.errors else ""), placeholder="الإجابة الصحيحة") }}
+                    {% if form.correct_answer.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.correct_answer.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="form-text" id="correctAnswerHelp">للأسئلة متعددة الخيارات: استخدم رقم الخيار في القائمة (0 للخيار الأول، 1 للثاني، إلخ).<br>للأسئلة من نوع صح/خطأ: استخدم "true" للصح و"false" للخطأ.<br>للأسئلة النصية: اكتب الإجابة الصحيحة كاملة.</div>
+                </div>
+            </div>
+            
+            <div class="d-grid">
+                {{ form.submit(class="btn btn-primary btn-lg") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // التحكم في ظهور واختفاء قسم الخيارات بناءً على نوع السؤال
+    const questionTypeSelect = document.getElementById('question_type');
+    const optionsSection = document.getElementById('optionsSection');
+    const correctAnswerHelp = document.getElementById('correctAnswerHelp');
+    
+    function updateFormFields() {
+        const selectedType = questionTypeSelect.value;
+        
+        // تحديث قسم الخيارات
+        if (selectedType === 'multiple_choice') {
+            optionsSection.style.display = 'block';
+        } else {
+            optionsSection.style.display = 'none';
+        }
+        
+        // تحديث نص المساعدة للإجابة الصحيحة
+        if (selectedType === 'multiple_choice') {
+            correctAnswerHelp.innerHTML = 'أدخل رقم الخيار الصحيح من القائمة (0 للخيار الأول، 1 للثاني، إلخ).';
+        } else if (selectedType === 'true_false') {
+            correctAnswerHelp.innerHTML = 'أدخل "true" للصح أو "false" للخطأ.';
+        } else if (selectedType === 'text') {
+            correctAnswerHelp.innerHTML = 'أدخل الإجابة النصية الصحيحة بالضبط.';
+        }
+    }
+    
+    // تعيين الحالة الأولية
+    updateFormFields();
+    
+    // تحديث الحقول عند تغيير نوع السؤال
+    questionTypeSelect.addEventListener('change', updateFormFields);
+});
+</script>
+{% endblock %}

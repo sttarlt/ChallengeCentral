@@ -247,6 +247,9 @@
                                     <a href="{{ url_for('admin_edit_competition', competition_id=competition.id) }}" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="تعديل">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                    <a href="{{ url_for('admin_competition_questions', competition_id=competition.id) }}" class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="إدارة الأسئلة">
+                                        <i class="fas fa-question-circle"></i>
+                                    </a>
                                 </div>
                             </td>
                         </tr>
