@@ -278,9 +278,29 @@ function copyReferralLink() {
         return;
     }
     
-    // 4. تحديد النص بشكل واضح لتسهيل النسخ سواء آلياً أو يدوياً
+    // 4. تحديد النص بشكل قوي لتسهيل النسخ سواء آلياً أو يدوياً
     referralField.focus();
-    referralField.select();
+    
+    // محاولة التحديد بعدة طرق لضمان عمله في جميع البيئات
+    try {
+        // طريقة 1: تحديد محتوى النص
+        referralField.select();
+        
+        // طريقة 2: تحديد من البداية إلى النهاية (أكثر موثوقية في بعض المتصفحات)
+        referralField.setSelectionRange(0, textToCopy.length);
+    } catch (e) {
+        console.log("تعذر تحديد النص بالطريقة المباشرة، جاري استخدام بدائل...");
+    }
+    
+    // طريقة 3: تحديد متكرر بعد فترة قصيرة لزيادة فرص نجاح التحديد
+    setTimeout(() => {
+        try {
+            referralField.select();
+            referralField.setSelectionRange(0, textToCopy.length);
+        } catch (e) {}
+    }, 50);
+    
+    // إضاءة الحقل بصرياً لجذب الانتباه
     highlightTextField(referralField);
     
     // استراتيجية متعددة المستويات للنسخ
@@ -317,8 +337,15 @@ function copyReferralLink() {
     function tryCopyWithExecCommand() {
         console.log("محاولة النسخ باستخدام execCommand");
         
-        // إعادة تحديد النص للتأكد قبل تنفيذ execCommand
-        referralField.select();
+        // إعادة تحديد النص بعناية قبل تنفيذ execCommand
+        referralField.focus();
+        try {
+            // محاولة تحديد النص بعدة طرق لزيادة فرص النجاح
+            referralField.select();
+            referralField.setSelectionRange(0, textToCopy.length);
+        } catch (e) {
+            console.log("حدث خطأ أثناء تحديد النص:", e);
+        }
         
         try {
             // تنفيذ أمر النسخ بتأخير بسيط لضمان التحديد الصحيح للنص
@@ -351,8 +378,24 @@ function copyReferralLink() {
     function useManualCopyFallback() {
         console.log("⚙️ التحول للنسخ اليدوي");
         
-        // إعادة تحديد النص بقوة
-        referralField.select();
+        // إعادة تحديد النص بقوة مع استخدام عدة طرق
+        referralField.focus();
+        try {
+            // مزيج من التقنيات لضمان تحديد النص
+            referralField.select();
+            referralField.setSelectionRange(0, textToCopy.length);
+            
+            // تقنية إضافية: استخدام التحديد عبر Range API
+            const range = document.createRange();
+            range.selectNodeContents(referralField);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        } catch (e) {
+            console.log("تعذر تحديد النص بالطرق المتقدمة:", e);
+            // محاولة بسيطة
+            referralField.select();
+        }
         
         // تعزيز التأثير البصري لجذب انتباه المستخدم
         referralField.style.backgroundColor = "#e8f4ff";
@@ -366,7 +409,7 @@ function copyReferralLink() {
         copyButton.classList.remove('btn-primary');
         copyButton.classList.add('btn-info');
         copySpinner.style.display = 'none';
-        buttonText.innerHTML = '<i class="bi bi-info-circle me-1"></i> انسخ يدوياً';
+        copyButtonText.innerHTML = '<i class="bi bi-info-circle me-1"></i> انسخ يدوياً';
         copyButton.disabled = false;
         
         // تحديد النص بشكل متكرر لفترة قصيرة لضمان سهولة النسخ
@@ -388,7 +431,7 @@ function copyReferralLink() {
                 setTimeout(() => {
                     copyButton.classList.remove('btn-info');
                     copyButton.classList.add('btn-primary');
-                    buttonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
+                    copyButtonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
                 }, 2000);
             }, { once: true });
             
