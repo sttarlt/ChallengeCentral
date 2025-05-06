@@ -64,8 +64,8 @@ if [ $TEST_EXIT_CODE -eq 0 ]; then
   unset FLASK_ENV
   unset TEST_DATABASE_URL
   
-  # Start the Flask application
-  exec gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app
+  # Start the Flask application on port 8080 for Replit compatibility
+  exec gunicorn --bind 0.0.0.0:8080 --reuse-port --reload main:app
 else
   echo "=== Tests failed with exit code $TEST_EXIT_CODE! ==="
   echo "=== HTML report available at: $REPORT_DIR/${TIMESTAMP}_*_report.html ==="
