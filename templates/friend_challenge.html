@@ -247,11 +247,13 @@ function setupReferralLinkField() {
 }
 
 /**
- * وظيفة نسخ رابط الإحالة - نسخة مبسطة وأكثر موثوقية
- * تعمل بشكل متوافق مع جميع المتصفحات وبيئة Replit
+ * وظيفة نسخ رابط الإحالة - محسّنة للعمل بشكل موثوق في بيئة Replit
+ * تعالج القيود المحددة في بيئة الـsandbox مع خطط احتياطية متعددة
  */
 function copyReferralLink() {
-    // 1. تحضير واجهة المستخدم للعملية
+    console.log("بدء عملية نسخ الرابط");
+    
+    // 1. تحضير واجهة المستخدم والعناصر المطلوبة
     const copyButton = document.getElementById('copyButton');
     const copyButtonText = document.getElementById('copyButtonText');
     const copySpinner = document.getElementById('copySpinner');
@@ -259,16 +261,16 @@ function copyReferralLink() {
     const copyMessage = document.getElementById('copyMessage');
     
     if (!referralField || !copyButton || !copyButtonText || !copySpinner || !copyMessage) {
-        console.error("لم يتم العثور على عناصر واجهة المستخدم المطلوبة");
+        console.error("خطأ: لم يتم العثور على عناصر واجهة المستخدم المطلوبة");
         return;
     }
     
-    // 2. إظهار حالة جارٍ النسخ
+    // 2. تحديث واجهة المستخدم لإظهار بدء العملية
     copySpinner.style.display = 'inline-block';
     copyButtonText.textContent = 'جارٍ النسخ...';
     copyButton.disabled = true;
     
-    // 3. الحصول على النص الذي سيتم نسخه
+    // 3. الحصول على النص المراد نسخه
     const textToCopy = referralField.value.trim();
     if (!textToCopy) {
         showMessage(copyMessage, false, "لا يوجد نص للنسخ!");
@@ -276,47 +278,128 @@ function copyReferralLink() {
         return;
     }
     
-    // 4. تحديد النص (مفيد سواء نجح النسخ التلقائي أم لا)
+    // 4. تحديد النص بشكل واضح لتسهيل النسخ سواء آلياً أو يدوياً
     referralField.focus();
     referralField.select();
     highlightTextField(referralField);
     
-    // 5. محاولة النسخ باستخدام واجهة Clipboard API الحديثة
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(textToCopy)
-            .then(() => {
-                console.log("تم النسخ بنجاح باستخدام Clipboard API");
-                showCopySuccess(copyButton, copyButtonText, copySpinner, copyMessage);
-            })
-            .catch(error => {
-                console.warn("فشل استخدام Clipboard API:", error);
-                fallbackCopyMethods(referralField, textToCopy, copyButton, copyButtonText, copySpinner, copyMessage);
-            });
-    } else {
-        // 6. استخدام طرق النسخ البديلة إذا كانت Clipboard API غير متوفرة
-        fallbackCopyMethods(referralField, textToCopy, copyButton, copyButtonText, copySpinner, copyMessage);
-    }
-}
-
-/**
- * طرق النسخ البديلة في حالة عدم توفر Clipboard API
- */
-function fallbackCopyMethods(field, text, button, buttonText, spinner, messageElement) {
-    try {
-        // 1. محاولة استخدام execCommand (الطريقة القديمة)
-        const successful = document.execCommand('copy');
-        
-        if (successful) {
-            console.log("تم النسخ بنجاح باستخدام execCommand");
-            showCopySuccess(button, buttonText, spinner, messageElement);
+    // استراتيجية متعددة المستويات للنسخ
+    tryCopyWithClipboardAPI();
+    
+    /**
+     * المستوى الأول: محاولة النسخ باستخدام Clipboard API الحديثة
+     * هذه الطريقة هي الأكثر موثوقية في المتصفحات الحديثة خارج Replit
+     */
+    function tryCopyWithClipboardAPI() {
+        // التحقق إذا كان Clipboard API متاحاً (التحقق من وجوده وليس فقط من isSecureContext)
+        if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            console.log("محاولة النسخ باستخدام Clipboard API");
+            
+            navigator.clipboard.writeText(textToCopy)
+                .then(() => {
+                    console.log("✅ تم النسخ بنجاح باستخدام Clipboard API");
+                    showCopySuccess(copyButton, copyButtonText, copySpinner, copyMessage);
+                })
+                .catch(error => {
+                    console.warn("⚠️ فشل استخدام Clipboard API:", error);
+                    tryCopyWithExecCommand();
+                });
         } else {
-            // 2. توجيه المستخدم للنسخ اليدوي إذا فشلت جميع الطرق التلقائية
-            console.warn("فشل استخدام execCommand");
-            showManualCopyInstructions(field, button, buttonText, spinner, messageElement);
+            console.log("⚠️ Clipboard API غير متوفرة، الانتقال للطريقة البديلة");
+            tryCopyWithExecCommand();
         }
-    } catch (err) {
-        console.error("خطأ أثناء محاولة النسخ:", err);
-        showManualCopyInstructions(field, button, buttonText, spinner, messageElement);
+    }
+    
+    /**
+     * المستوى الثاني: محاولة النسخ باستخدام document.execCommand
+     * هذه الطريقة تعمل في معظم المتصفحات بما في ذلك الإصدارات القديمة
+     */
+    function tryCopyWithExecCommand() {
+        console.log("محاولة النسخ باستخدام execCommand");
+        
+        // إعادة تحديد النص للتأكد قبل تنفيذ execCommand
+        referralField.select();
+        
+        try {
+            // تنفيذ أمر النسخ بتأخير بسيط لضمان التحديد الصحيح للنص
+            setTimeout(() => {
+                try {
+                    const successful = document.execCommand('copy');
+                    
+                    if (successful) {
+                        console.log("✅ تم النسخ بنجاح باستخدام execCommand");
+                        showCopySuccess(copyButton, copyButtonText, copySpinner, copyMessage);
+                    } else {
+                        console.warn("⚠️ فشل أمر النسخ execCommand");
+                        useManualCopyFallback();
+                    }
+                } catch (execErr) {
+                    console.error("⚠️ خطأ في execCommand:", execErr);
+                    useManualCopyFallback();
+                }
+            }, 100); // تأخير بسيط للتأكد من تحديد النص قبل النسخ
+        } catch (err) {
+            console.error("⚠️ خطأ عام في محاولة النسخ:", err);
+            useManualCopyFallback();
+        }
+    }
+    
+    /**
+     * المستوى الثالث: النسخ اليدوي كملاذ أخير
+     * توجيه المستخدم لنسخ النص يدوياً عندما تفشل جميع الطرق الآلية
+     */
+    function useManualCopyFallback() {
+        console.log("⚙️ التحول للنسخ اليدوي");
+        
+        // إعادة تحديد النص بقوة
+        referralField.select();
+        
+        // تعزيز التأثير البصري لجذب انتباه المستخدم
+        referralField.style.backgroundColor = "#e8f4ff";
+        referralField.style.color = "#0d6efd";
+        referralField.style.fontWeight = "bold";
+        
+        // إظهار رسالة واضحة للمستخدم مع تعليمات
+        showMessage(copyMessage, true, "تم تحديد الرابط! استخدم Ctrl+C (أو Cmd+C) لنسخه");
+        
+        // تغيير مظهر الزر لإظهار أن النسخ اليدوي مطلوب الآن
+        copyButton.classList.remove('btn-primary');
+        copyButton.classList.add('btn-info');
+        copySpinner.style.display = 'none';
+        buttonText.innerHTML = '<i class="bi bi-info-circle me-1"></i> انسخ يدوياً';
+        copyButton.disabled = false;
+        
+        // تحديد النص بشكل متكرر لفترة قصيرة لضمان سهولة النسخ
+        let selectionTimeout = setTimeout(function keepSelecting() {
+            referralField.select();
+            selectionTimeout = setTimeout(keepSelecting, 500);
+        }, 500);
+        
+        // إيقاف التحديد المتكرر بعد 5 ثوان
+        setTimeout(() => {
+            clearTimeout(selectionTimeout);
+            
+            // رصد حدث النسخ للتأكيد على نجاح العملية
+            document.addEventListener('copy', function onCopyDetected() {
+                showMessage(copyMessage, true, "تم نسخ الرابط بنجاح! 👍");
+                document.removeEventListener('copy', onCopyDetected);
+                
+                // إعادة الزر إلى حالته الأصلية بعد فترة
+                setTimeout(() => {
+                    copyButton.classList.remove('btn-info');
+                    copyButton.classList.add('btn-primary');
+                    buttonText.innerHTML = '<i class="bi bi-clipboard me-1"></i> نسخ الرابط';
+                }, 2000);
+            }, { once: true });
+            
+            // إعادة تعيين مظهر حقل النص بعد انتهاء فترة التأكيد
+            setTimeout(() => {
+                referralField.style.transition = "all 0.5s ease";
+                referralField.style.backgroundColor = "";
+                referralField.style.color = "";
+                referralField.style.fontWeight = "";
+            }, 2000);
+        }, 5000);
     }
 }
 
@@ -436,76 +519,242 @@ function showMessage(element, isSuccess, message) {
 }
 
 /**
- * مشاركة الرابط عبر واتساب
- * نسخة محسنة تعمل بشكل موثوق في بيئة Replit وخارجها
+ * مشاركة الرابط عبر واتساب - محسّنة للعمل بشكل موثوق في جميع البيئات
+ * مع معالجة محددة لقيود بيئة Replit
  */
 function shareViaWhatsApp(event) {
+    console.log("بدء عملية مشاركة الرابط عبر واتساب");
+    
+    // منع السلوك الافتراضي للنقر
     if (event) event.preventDefault();
     
-    // 1. الحصول على النص من الحقل
+    // 1. تجهيز واجهة المستخدم للعملية
+    const whatsappButton = document.getElementById('whatsappShareButton');
     const referralField = document.getElementById('referralLink');
     const messageElement = document.getElementById('copyMessage');
     
-    if (!referralField || !messageElement) {
-        console.error("لم يتم العثور على العناصر المطلوبة");
+    if (!whatsappButton || !referralField || !messageElement) {
+        console.error("خطأ: لم يتم العثور على العناصر المطلوبة");
         return;
     }
     
-    // 2. التحقق من وجود نص
+    // إظهار حالة "جاري المشاركة" على الزر
+    const originalButtonHTML = whatsappButton.innerHTML;
+    whatsappButton.disabled = true;
+    whatsappButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> جارٍ الفتح...';
+    
+    // 2. التحقق من وجود نص صالح للمشاركة
     const referralLink = referralField.value.trim();
     if (!referralLink) {
+        console.error("خطأ: الرابط غير موجود");
         showMessage(messageElement, false, "لا يوجد رابط للمشاركة!");
+        resetWhatsAppButton(whatsappButton, originalButtonHTML);
         return;
     }
     
-    // 3. تحديد النص للنسخ اليدوي كاحتياط
+    // 3. تحديد النص للنسخ اليدوي كاحتياط دائمًا (مفيد في جميع الحالات)
     referralField.select();
     
-    // 4. إنشاء محتوى المشاركة
-    const shareText = "✨ انضم إلى منصة مسابقاتي واحصل على كربتو مجاني! 💰\n\n" +
-                     "استخدم رابط الدعوة الخاص بي للحصول على مكافأة ترحيبية:\n" +
-                     referralLink;
+    // 4. إنشاء محتوى المشاركة مع تنسيق جذاب
+    const shareText = `✨ انضم إلى منصة مسابقاتي واحصل على كربتو مجاني! 💰
+
+استخدم رابط الدعوة الخاص بي للحصول على مكافأة ترحيبية:
+${referralLink}`;
     
-    // 5. تشفير النص للاستخدام في عنوان URL
+    // 5. تشفير النص بشكل آمن مع التعامل مع الأحرف الخاصة
     const encodedText = encodeURIComponent(shareText);
     const whatsappUrl = `https://wa.me/?text=${encodedText}`;
     
-    // 6. محاولة فتح واتساب في نافذة/علامة تبويب جديدة
-    try {
-        // استخدام طريقة فتح أكثر توافقًا مع الأجهزة المحمولة والمتصفحات المختلفة
-        const shareWindow = window.open(whatsappUrl, '_blank');
-        
-        if (!shareWindow || shareWindow.closed || typeof shareWindow.closed === 'undefined') {
-            // فشل فتح النافذة - عادة بسبب حظر النوافذ المنبثقة
-            showMessage(messageElement, false, 
-                "تم منع فتح واتساب. انسخ الرابط أولاً ثم شاركه يدويًا.");
-            referralField.select(); // إعادة تحديد النص للنسخ اليدوي
-        } else {
-            // نجاح فتح النافذة
-            showMessage(messageElement, true, "تم فتح واتساب للمشاركة");
-        }
-    } catch (error) {
-        console.error("خطأ أثناء فتح واتساب:", error);
-        
-        // خطة بديلة - إنشاء عنصر رابط وتنفيذ النقر عليه
-        try {
-            const tempLink = document.createElement('a');
-            tempLink.href = whatsappUrl;
-            tempLink.target = '_blank';
-            tempLink.style.display = 'none';
-            document.body.appendChild(tempLink);
-            tempLink.click();
-            document.body.removeChild(tempLink);
+    // 6. استراتيجية متعددة المراحل للمشاركة
+    console.log("محاولة فتح واتساب باستخدام: " + whatsappUrl);
+    
+    // استخدام نهج متعدد المستويات للمشاركة
+    tryWebShareAPI()
+        .catch(() => tryWindowOpen())
+        .catch(() => tryLinkElement())
+        .catch(() => useCopyFallback())
+        .finally(() => {
+            // إعادة زر المشاركة إلى حالته الأصلية بعد 2 ثانية
+            setTimeout(() => {
+                resetWhatsAppButton(whatsappButton, originalButtonHTML);
+            }, 2000);
+        });
+    
+    /**
+     * المستوى الأول: محاولة استخدام Web Share API (الأفضل للأجهزة المحمولة)
+     */
+    function tryWebShareAPI() {
+        return new Promise((resolve, reject) => {
+            if (navigator.share) {
+                console.log("محاولة مشاركة باستخدام Web Share API");
+                
+                navigator.share({
+                    title: 'دعوة لمنصة مسابقاتي',
+                    text: shareText,
+                    url: referralLink
+                }).then(() => {
+                    console.log("✅ تمت المشاركة بنجاح عبر Web Share API");
+                    showMessage(messageElement, true, "تمت المشاركة بنجاح!");
+                    whatsappButton.innerHTML = '<i class="bi bi-check-lg me-1"></i> تمت المشاركة';
+                    whatsappButton.classList.remove("btn-success");
+                    whatsappButton.classList.add("btn-outline-success");
+                    resolve();
+                }).catch(err => {
+                    console.warn("⚠️ فشلت مشاركة Web Share API:", err);
+                    reject(err);
+                });
+            } else {
+                console.log("⚠️ Web Share API غير متوفرة");
+                reject(new Error("Web Share API غير متوفرة"));
+            }
+        });
+    }
+    
+    /**
+     * المستوى الثاني: فتح نافذة جديدة (الطريقة التقليدية)
+     */
+    function tryWindowOpen() {
+        return new Promise((resolve, reject) => {
+            console.log("محاولة فتح نافذة جديدة مع رابط واتساب");
             
-            showMessage(messageElement, true, "تم فتح واتساب للمشاركة");
-        } catch (fallbackError) {
-            // فشلت حتى الخطة البديلة
-            console.error("فشلت الخطة البديلة:", fallbackError);
-            showMessage(messageElement, false, 
-                "تعذر فتح واتساب. يرجى نسخ الرابط ومشاركته يدويًا.");
-            referralField.select();
+            try {
+                // إضافة timestamp للتغلب على التخزين المؤقت في بيئة Replit
+                const timeStampedUrl = whatsappUrl + '&t=' + new Date().getTime();
+                const shareWindow = window.open(timeStampedUrl, '_blank');
+                
+                if (!shareWindow || shareWindow.closed || typeof shareWindow.closed === 'undefined') {
+                    console.warn("⚠️ تم منع فتح النافذة الجديدة");
+                    reject(new Error("تم منع فتح النافذة الجديدة"));
+                } else {
+                    console.log("✅ تم فتح النافذة بنجاح");
+                    showMessage(messageElement, true, "تم فتح واتساب للمشاركة");
+                    whatsappButton.innerHTML = '<i class="bi bi-check-lg me-1"></i> تم الفتح';
+                    whatsappButton.classList.remove("btn-success");
+                    whatsappButton.classList.add("btn-outline-success");
+                    resolve();
+                }
+            } catch (error) {
+                console.error("⚠️ خطأ أثناء فتح النافذة:", error);
+                reject(error);
+            }
+        });
+    }
+    
+    /**
+     * المستوى الثالث: استخدام عنصر رابط مؤقت
+     */
+    function tryLinkElement() {
+        return new Promise((resolve, reject) => {
+            console.log("محاولة استخدام عنصر رابط مؤقت");
+            
+            try {
+                const tempLink = document.createElement('a');
+                tempLink.href = whatsappUrl;
+                tempLink.target = '_blank';
+                tempLink.rel = 'noopener noreferrer'; // تحسين الأمان
+                tempLink.style.display = 'none';
+                tempLink.setAttribute('download', 'share-link');
+                document.body.appendChild(tempLink);
+                
+                // محاولة تنفيذ النقر بعدة طرق
+                try {
+                    // طريقة 1: الأمر الأساسي للنقر
+                    tempLink.click();
+                } catch (e) {
+                    // طريقة 2: محاكاة حدث نقر
+                    const event = new MouseEvent('click', {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true
+                    });
+                    tempLink.dispatchEvent(event);
+                }
+                
+                // إزالة العنصر المؤقت
+                document.body.removeChild(tempLink);
+                
+                console.log("✅ تم استخدام عنصر الرابط بنجاح");
+                showMessage(messageElement, true, "تم فتح واتساب للمشاركة");
+                resolve();
+            } catch (error) {
+                console.error("⚠️ فشل استخدام عنصر الرابط:", error);
+                reject(error);
+            }
+        });
+    }
+    
+    /**
+     * المستوى الرابع: النسخ اليدوي كملاذ أخير
+     */
+    function useCopyFallback() {
+        console.log("⚙️ استخدام آلية النسخ اليدوي كملاذ أخير");
+        
+        // 1. تعزيز تحديد النص بشكل واضح
+        referralField.select();
+        highlightTextField(referralField);
+        
+        // 2. محاولة نسخ النص تلقائيًا إذا أمكن
+        let copySucceeded = false;
+        
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareText).then(() => {
+                    console.log("✅ تم نسخ نص المشاركة تلقائيًا");
+                    copySucceeded = true;
+                    showMessage(messageElement, true, "تم نسخ نص المشاركة! افتح واتساب والصق النص.");
+                }).catch(() => {
+                    console.log("⚠️ فشل نسخ النص تلقائيًا");
+                });
+            } else if (document.execCommand('copy')) {
+                copySucceeded = true;
+                showMessage(messageElement, true, "تم نسخ نص المشاركة! افتح واتساب والصق النص.");
+            }
+        } catch (e) {
+            console.error("⚠️ خطأ في نسخ النص:", e);
+        }
+        
+        // 3. عرض رسالة توجيهية للمستخدم
+        if (!copySucceeded) {
+            showMessage(messageElement, false, "يرجى نسخ الرابط يدويًا (Ctrl+C) ومشاركته عبر واتساب.");
+        }
+        
+        // 4. عرض رابط مباشر كخيار إضافي
+        const directLink = document.createElement('div');
+        directLink.className = 'mt-2 text-center';
+        directLink.innerHTML = `<a href="${whatsappUrl}" target="_blank" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-box-arrow-up-right me-1"></i> فتح واتساب مباشرة</a>`;
+        
+        // إضافة الرابط المباشر بعد عنصر الرسالة
+        if (messageElement.nextSibling) {
+            messageElement.parentNode.insertBefore(directLink, messageElement.nextSibling);
+        } else {
+            messageElement.parentNode.appendChild(directLink);
+        }
+        
+        // إزالة الرابط المباشر بعد فترة زمنية
+        setTimeout(() => {
+            if (directLink.parentNode) {
+                directLink.parentNode.removeChild(directLink);
+            }
+        }, 15000); // 15 ثانية
+        
+        // 5. تحديث مظهر الزر
+        whatsappButton.disabled = false;
+        whatsappButton.innerHTML = '<i class="bi bi-clipboard me-1"></i> انسخ للمشاركة';
+    }
+    
+    /**
+     * إعادة زر المشاركة إلى حالته الأصلية
+     */
+    function resetWhatsAppButton(button, originalHTML) {
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+        if (button.classList.contains("btn-outline-success")) {
+            button.classList.remove("btn-outline-success");
+            button.classList.add("btn-success");
         }
     }
+}
 }
 </script>
 {% endblock %}
